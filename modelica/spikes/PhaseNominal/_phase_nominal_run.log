@@ -1,0 +1,67 @@
+true
+true
+true
+true
+true
+""
+@@CHK_MinRepro=Check of MinRepro completed successfully.
+Class MinRepro has 17 equation(s) and 17 variable(s).
+0 of these are trivial equation(s).@@
+
+record SimulationResult
+    resultFile = "",
+    simulationOptions = "startTime = 0.0, stopTime = 1.0, numberOfIntervals = 500, tolerance = 1e-6, method = 'dassl', fileNamePrefix = 'MinRepro', options = '', outputFormat = 'mat', variableFilter = '.*', cflags = '', simflags = ''",
+    messages = "Failed to build model: MinRepro",
+    timeFrontend = 4.1004398,
+    timeBackend = 0.0247578,
+    timeSimCode = 0.016029,
+    timeTemplates = 0.0495156,
+    timeCompile = 3.7483847,
+    timeSimulation = 0.0,
+    timeTotal = 7.940106
+end SimulationResult;
+
+
+record SimulationResult
+    resultFile = "",
+    simulationOptions = "startTime = 0.0, stopTime = 1.0, numberOfIntervals = 500, tolerance = 1e-6, method = 'dassl', fileNamePrefix = 'VariantA', options = '', outputFormat = 'mat', variableFilter = '.*', cflags = '', simflags = ''",
+    messages = "Failed to build model: VariantA",
+    timeFrontend = 4.3785337,
+    timeBackend = 0.0108073,
+    timeSimCode = 0.0073283,
+    timeTemplates = 0.0475494,
+    timeCompile = 4.6525103,
+    timeSimulation = 0.0,
+    timeTotal = 9.0976118
+end SimulationResult;
+
+
+record SimulationResult
+    resultFile = "C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/VariantB_res.mat",
+    simulationOptions = "startTime = 0.0, stopTime = 1.0, numberOfIntervals = 500, tolerance = 1e-6, method = 'dassl', fileNamePrefix = 'VariantB', options = '', outputFormat = 'mat', variableFilter = '.*', cflags = '', simflags = ''",
+    messages = "calc_transport has the value of 1
+TTSE is off
+enable_TTSE has the value of 0
+BICUBIC is off
+enable_BICUBIC has the value of 0
+enable_EXTTP has the value of 1
+twophase_derivsmoothing_xend has the value of 0.0
+rho_smoothing_xend has the value of 0.0
+debug has the value of 0
+LOG_SUCCESS       | info    | The initialization finished successfully without homotopy method.
+LOG_SUCCESS       | info    | The simulation finished successfully.
+",
+    timeFrontend = 4.0665237,
+    timeBackend = 0.0092386,
+    timeSimCode = 0.0053317,
+    timeTemplates = 0.0432304,
+    timeCompile = 6.2676525,
+    timeSimulation = 1.7928593,
+    timeTotal = 12.1867366
+end SimulationResult;
+
+
+@@ERR=[C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/spikes/PhaseNominal/run_phase_nominal.mos:30:1-30:50:writable] Error: Variable rB.resultFile not found in scope <global scope>.
+[C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/spikes/PhaseNominal/run_phase_nominal.mos:31:1-31:48:writable] Error: Variable rB.messages not found in scope <global scope>.
+@@
+

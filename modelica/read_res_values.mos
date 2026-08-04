@@ -1,0 +1,32 @@
+// Script to read physical values from OpenModelica result file
+f := "RefrigerationTrainer.ClosedLoopM1eCS_res.mat";
+p_su_0 := val(p_suction_pa, 0.0, f);
+p_su_30 := val(p_suction_pa, 30.0, f);
+p_dis_0 := val(p_discharge_pa, 0.0, f);
+p_dis_30 := val(p_discharge_pa, 30.0, f);
+m_dot_0 := val(m_dot_kg_s, 0.0, f);
+m_dot_30 := val(m_dot_kg_s, 30.0, f);
+Q_evap_0 := val(Q_evap_w, 0.0, f);
+Q_evap_30 := val(Q_evap_w, 30.0, f);
+Q_cond_0 := val(Q_cond_w, 0.0, f);
+Q_cond_30 := val(Q_cond_w, 30.0, f);
+W_comp_0 := val(W_comp_w, 0.0, f);
+W_comp_30 := val(W_comp_w, 30.0, f);
+sh_0 := val(superheat_k, 0.0, f);
+sh_30 := val(superheat_k, 30.0, f);
+sc_0 := val(subcooling_k, 0.0, f);
+sc_30 := val(subcooling_k, 30.0, f);
+cop_0 := val(cop, 0.0, f);
+cop_30 := val(cop, 30.0, f);
+
+print("=================== CLOSED-LOOP M1e PHYSICAL SIMULATION RESULTS ===================\n");
+print("Suction Pressure (Pa):    t=0s: " + String(p_su_0) + " | t=30s: " + String(p_su_30) + "\n");
+print("Discharge Pressure (Pa):  t=0s: " + String(p_dis_0) + " | t=30s: " + String(p_dis_30) + "\n");
+print("Refrigerant Flow (kg/s):  t=0s: " + String(m_dot_0) + " | t=30s: " + String(m_dot_30) + "\n");
+print("Cooling Capacity (W):     t=0s: " + String(Q_evap_0) + " | t=30s: " + String(Q_evap_30) + "\n");
+print("Condenser Rejection (W): t=0s: " + String(Q_cond_0) + " | t=30s: " + String(Q_cond_30) + "\n");
+print("Compressor Power (W):    t=0s: " + String(W_comp_0) + " | t=30s: " + String(W_comp_30) + "\n");
+print("Superheat (K):            t=0s: " + String(sh_0) + " | t=30s: " + String(sh_30) + "\n");
+print("Subcooling (K):           t=0s: " + String(sc_0) + " | t=30s: " + String(sc_30) + "\n");
+print("COP (1):                  t=0s: " + String(cop_0) + " | t=30s: " + String(cop_30) + "\n");
+print("===================================================================================\n");

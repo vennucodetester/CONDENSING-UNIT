@@ -1,0 +1,14 @@
+loadModel(Modelica, {"4.0.0"});
+loadModel(ExternalMedia);
+loadFile("vendor/ThermoCycle-library/ThermoCycle/package.mo");
+convertPackageToLibrary(ThermoCycle, Modelica, "4.1.0");
+loadFile("RefrigerationTrainer/package.mo");
+loadFile("RefrigerationTrainer/Flow1DimCS.mo");
+loadFile("RefrigerationTrainer/WallTemperatureSource.mo");
+loadFile("RefrigerationTrainer/EvapFmuSmoke.mo");
+junk := getErrorString();
+c := checkModel(RefrigerationTrainer.EvapFmuSmoke);
+print("@@CHECK=" + c + "@@\n");
+f := buildModelFMU(RefrigerationTrainer.EvapFmuSmoke, version="2.0", fmuType="cs", fileNamePrefix="EvapFmuSmoke");
+print("@@FMU=" + f + "@@\n");
+print("@@ERR=" + getErrorString() + "@@\n");

@@ -1,0 +1,3 @@
+#ifndef RefrigerationTrainer.ClosedLoopM1e_16DAE_H
+#define RefrigerationTrainer.ClosedLoopM1e_16DAE_H
+#endif

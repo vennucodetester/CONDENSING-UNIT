@@ -1,0 +1,8 @@
+// Script to inspect time-series trajectories from result MAT file
+res := readSimulationResult("RefrigerationTrainer.ClosedLoopM1eCS_res.mat", {time, p_suction_pa, p_discharge_pa, m_dot_kg_s, superheat_k, Q_evap_w});
+print("Matrix dimensions: " + String(size(res, 1)) + " x " + String(size(res, 2)) + "\n");
+if size(res, 1) > 0 and size(res, 2) > 0 then
+  print("t=0:   p_su=" + String(res[2,1]) + " | p_dis=" + String(res[3,1]) + " | mdot=" + String(res[4,1]) + " | SH=" + String(res[5,1]) + "\n");
+  print("t=15:  p_su=" + String(res[2, 150]) + " | p_dis=" + String(res[3, 150]) + " | mdot=" + String(res[4, 150]) + " | SH=" + String(res[5, 150]) + "\n");
+  print("t=30:  p_su=" + String(res[2, size(res,2)]) + " | p_dis=" + String(res[3, size(res,2)]) + " | mdot=" + String(res[4, size(res,2)]) + " | SH=" + String(res[5, size(res,2)]) + "\n");
+end if;

@@ -1,0 +1,3 @@
+// Extract 2000s result variables to CSV via OMC readSimulationResult
+val_t := readSimulationResult("res_2000s_m2.mat", {"time", "p_suction_pa", "p_discharge_pa", "m_dot_kg_s", "superheat_k", "subcooling_k", "txv_opening_cmd", "txv_saturated", "Q_evap_w", "W_comp_w"}, 500);
+print(getMessagesString());

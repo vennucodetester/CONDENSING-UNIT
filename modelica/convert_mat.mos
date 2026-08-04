@@ -1,0 +1,2 @@
+// Convert mat result to csv
+readSimulationResult("RefrigerationTrainer.ClosedLoopM1eCS_res.mat", {"time", "p_suction_pa", "p_discharge_pa", "m_dot_kg_s", "superheat_k", "subcooling_k", "txv_opening_cmd", "txv_saturated", "Q_evap_w", "W_comp_w"});

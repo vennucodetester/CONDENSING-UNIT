@@ -1,0 +1,5 @@
+vars := readSimulationResultVars("RefrigerationTrainer.ClosedLoopM1eCS_res.mat");
+print("Total vars in MAT: " + String(size(vars, 1)) + "\n");
+for i in 1:min(30, size(vars, 1)) loop
+  print("Var " + String(i) + ": " + vars[i] + "\n");
+end for;

@@ -1,0 +1,18 @@
+{
+  "experiment": "evaporator_airflow",
+  "nodes": [
+    "airflow",
+    "air_side_heat_transfer",
+    "evaporating_condition",
+    "suction_density",
+    "refrigerant_mass_flow",
+    "capacity"
+  ],
+  "edges": [
+    ["airflow", "air_side_heat_transfer"],
+    ["air_side_heat_transfer", "evaporating_condition"],
+    ["evaporating_condition", "suction_density"],
+    ["suction_density", "refrigerant_mass_flow"],
+    ["refrigerant_mass_flow", "capacity"]
+  ]
+}

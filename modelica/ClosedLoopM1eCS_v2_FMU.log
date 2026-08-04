@@ -1,0 +1,6 @@
+mingw32-make: Entering directory 'C:/Users/silam/OneDrive/DOCUME~1/CONDEN~1/modelica'
+rm -f 199.fmutmp/sources/ClosedLoopM1eCS_v2_init.xml
+cp -a "C:/Users/silam/AppData/Local/OpenModelica1270/share/omc/runtime/c/fmi/buildproject/"* 199.fmutmp/sources
+cp -a ClosedLoopM1eCS_v2_FMU.libs 199.fmutmp/sources/
+mingw32-make: Leaving directory 'C:/Users/silam/OneDrive/DOCUME~1/CONDEN~1/modelica'
+RESULT: 0 

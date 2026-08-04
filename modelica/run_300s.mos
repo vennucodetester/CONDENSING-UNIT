@@ -1,0 +1,7 @@
+loadModel(Modelica);
+loadFile("vendor/ThermoCycle-library/ThermoCycle/package.mo");
+loadFile("RefrigerationTrainer/package.mo");
+
+res := simulate(RefrigerationTrainer.ClosedLoopM1eCS, startTime=0.0, stopTime=300.0, numberOfIntervals=3000, outputFormat="csv");
+print(getMessagesString());
+print("Result CSV: " + res.resultFile + "\n");

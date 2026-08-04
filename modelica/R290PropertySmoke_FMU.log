@@ -1,0 +1,6 @@
+mingw32-make: Entering directory 'C:/Users/silam/OneDrive/DOCUME~1/CONDEN~1/modelica'
+rm -f 120.fmutmp/sources/R290PropertySmoke_init.xml
+cp -a "C:/Program Files/OpenModelica1.26.3-64bit/share/omc/runtime/c/fmi/buildproject/"* 120.fmutmp/sources
+cp -a R290PropertySmoke_FMU.libs 120.fmutmp/sources/
+mingw32-make: Leaving directory 'C:/Users/silam/OneDrive/DOCUME~1/CONDEN~1/modelica'
+RESULT: 0 

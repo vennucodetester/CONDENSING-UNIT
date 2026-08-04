@@ -1,0 +1,6 @@
+mingw32-make: Entering directory 'C:/Users/silam/OneDrive/DOCUME~1/CONDEN~1/modelica'
+rm -f 810.fmutmp/sources/RefrigerationTrainerSmoke_init.xml
+cp -a "C:/Program Files/OpenModelica1.26.3-64bit/share/omc/runtime/c/fmi/buildproject/"* 810.fmutmp/sources
+cp -a RefrigerationTrainerSmoke_FMU.libs 810.fmutmp/sources/
+mingw32-make: Leaving directory 'C:/Users/silam/OneDrive/DOCUME~1/CONDEN~1/modelica'
+RESULT: 0 

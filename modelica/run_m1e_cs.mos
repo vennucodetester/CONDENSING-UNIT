@@ -1,0 +1,17 @@
+// M1e closed loop using CompressorEM (OM#16169 workaround).
+// Run from the modelica/ directory:  omc run_m1e_cs.mos
+loadModel(Modelica, {"4.0.0"}); loadModel(ExternalMedia);
+loadFile("vendor/ThermoCycle-library/ThermoCycle/package.mo");
+convertPackageToLibrary(ThermoCycle, Modelica, "4.1.0");
+loadFile("RefrigerationTrainer/package.mo");
+loadFile("RefrigerationTrainer/Flow1DimCS.mo");
+loadFile("RefrigerationTrainer/WallTemperatureSource.mo");
+loadFile("RefrigerationTrainer/CoilAirSide.mo");
+loadFile("RefrigerationTrainer/CompressorEM.mo");
+loadFile("RefrigerationTrainer/ClosedLoopM1eCS.mo");
+junk := getErrorString();
+c := checkModel(RefrigerationTrainer.ClosedLoopM1eCS);
+print("@@CHK=" + c + "@@\n");
+simulate(RefrigerationTrainer.ClosedLoopM1eCS, stopTime=30, numberOfIntervals=300, tolerance=1e-6, outputFormat="csv");
+errs := getErrorString();
+writeFile("spikes/PhaseNominal/_m1e_cs_run.log", errs);

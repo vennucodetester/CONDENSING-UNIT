@@ -1,0 +1,10 @@
+loadModel(Modelica, {"4.0.0"});
+loadModel(ExternalMedia);
+loadFile("vendor/ThermoCycle-library/ThermoCycle/package.mo");
+convertPackageToLibrary(ThermoCycle, Modelica, "4.1.0");
+loadFile("spikes/PathB/PathB.mo");
+loadFile("spikes/PathB/Deconfound.mo");
+junk := getErrorString();
+rA := simulate(DeconfoundA_ArrayComputeSatTrue, stopTime=5);
+print("@@A_RESULT=" + rA.resultFile + "@@\n");
+print("@@A_ERR=" + getErrorString() + "@@\n");

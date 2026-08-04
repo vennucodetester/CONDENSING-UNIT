@@ -1,0 +1,38 @@
+// M1c Path B reproduction script.
+// Run from  modelica/  :
+//     omc spikes/PathB/run_pathB.mos
+//
+// Prerequisite (one-off):  installPackage(ExternalMedia, "4.1.1", exactMatch=false);
+//
+// Expected outcome as of 2026-08-02, OpenModelica 1.26.3 / ExternalMedia 4.1.1:
+//   PathB1_Properties  -> result file produced, @@ values printed   (PASS)
+//   PathB3_SingleCell  -> result file produced                      (PASS)
+//   PathB2_Flow1Dim    -> resultFile == "", C compile error         (FAIL)
+
+loadModel(Modelica, {"4.0.0"});                          getErrorString();
+loadModel(ExternalMedia);                                getErrorString();
+loadFile("vendor/ThermoCycle-library/ThermoCycle/package.mo"); getErrorString();
+
+// ThermoCycle declares uses(Modelica 3.2.1); OMC substitutes MSL 4.1.0.
+// This conversion is IN MEMORY ONLY — the vendored source is never modified.
+convertPackageToLibrary(ThermoCycle, Modelica, "4.1.0"); getErrorString();
+
+loadFile("spikes/PathB/PathB.mo");                       getErrorString();
+
+// ---- STEP 1: properties + saturation derivatives -------------------------
+r1 := simulate(PathB1_Properties, stopTime=1.0);
+print("\n@@STEP1_RESULT=" + r1.resultFile + "\n");
+print("@@STEP1_MSG=" + r1.messages + "\n");
+getErrorString();
+
+// ---- STEP 3 (control): single cell, no component array -------------------
+r3 := simulate(PathB3_SingleCell, stopTime=10);
+print("\n@@STEP3_RESULT=" + r3.resultFile + "\n");
+print("@@STEP3_MSG=" + r3.messages + "\n");
+getErrorString();
+
+// ---- STEP 2: Flow1Dim -> expected to FAIL at C compile -------------------
+r2 := simulate(PathB2_Flow1Dim, stopTime=20, numberOfIntervals=200);
+print("\n@@STEP2_RESULT=" + r2.resultFile + "\n");
+print("@@STEP2_MSG=" + r2.messages + "\n");
+print("\n@@STEP2_BUILDLOG_START\n" + getErrorString() + "\n@@STEP2_BUILDLOG_END\n");

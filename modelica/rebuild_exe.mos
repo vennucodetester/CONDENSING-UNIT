@@ -1,0 +1,7 @@
+loadModel(Modelica);
+loadFile("vendor/ThermoCycle-library/ThermoCycle/package.mo");
+loadFile("RefrigerationTrainer/package.mo");
+
+res := buildModel(RefrigerationTrainer.ClosedLoopM1eCS);
+print(getMessagesString());
+print("Executable built: " + res[1] + "\n");

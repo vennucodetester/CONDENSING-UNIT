@@ -1,0 +1,4 @@
+loadFile("RefrigerationTrainer/package.mo");
+loadFile("RefrigerationTrainer/SmokeContract.mo");
+buildModelFMU(RefrigerationTrainer.SmokeContract, version="2.0", fmuType="cs", fileNamePrefix="RefrigerationTrainerSmoke");
+getErrorString();

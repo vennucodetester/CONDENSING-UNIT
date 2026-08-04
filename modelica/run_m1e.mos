@@ -1,0 +1,14 @@
+loadModel(Modelica, {"4.0.0"}); loadModel(ExternalMedia);
+loadFile("vendor/ThermoCycle-library/ThermoCycle/package.mo");
+convertPackageToLibrary(ThermoCycle, Modelica, "4.1.0");
+loadFile("RefrigerationTrainer/package.mo");
+loadFile("RefrigerationTrainer/Flow1DimCS.mo");
+loadFile("RefrigerationTrainer/WallTemperatureSource.mo");
+loadFile("RefrigerationTrainer/ClosedLoopM1e.mo");
+junk := getErrorString();
+c := checkModel(RefrigerationTrainer.ClosedLoopM1e);
+print("@@CHK=" + c + "@@\n");
+print("@@CE=" + getErrorString() + "@@\n");
+r := simulate(RefrigerationTrainer.ClosedLoopM1e, stopTime=30, numberOfIntervals=300, tolerance=1e-6);
+print("@@RES=" + r.resultFile + "@@\n");
+print("@@MSG=" + r.messages + "@@\n");

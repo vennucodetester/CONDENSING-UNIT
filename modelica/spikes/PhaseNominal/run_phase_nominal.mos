@@ -1,0 +1,31 @@
+// Spike: isolate the OMC `INTEGER_ATTRIBUTE.nominal` codegen defect (M1e defect 3).
+// Run from the modelica/ directory:
+//     omc spikes/PhaseNominal/run_phase_nominal.mos
+//
+// Three models, one variable at a time:
+//   MinRepro  - ThermodynamicState record in a nonlinear block   -> EXPECT FAIL
+//   VariantA  - same, but phase pinned to 1 in setState_ph       -> EXPECT FAIL
+//   VariantB  - same maths, no state record, scalar *_ph calls   -> EXPECT PASS
+//
+// Depends on ExternalMedia + MSL only. No ThermoCycle, no loop, no compressor.
+
+loadModel(Modelica, {"4.0.0"});
+loadModel(ExternalMedia);
+loadFile("spikes/PhaseNominal/MinRepro.mo");
+loadFile("spikes/PhaseNominal/VariantA.mo");
+loadFile("spikes/PhaseNominal/VariantB.mo");
+junk := getErrorString();
+
+print("@@CHK_MinRepro=" + checkModel(MinRepro) + "@@\n");
+
+// Each simulate() echoes a SimulationResult record. Read `resultFile`:
+// empty string = build failed, a .mat path = built and simulated.
+// (Do not `print(r.resultFile)` -- omc does not resolve record fields in
+//  script scope and the statement errors.)
+simulate(MinRepro, stopTime=1, tolerance=1e-6);
+simulate(VariantA, stopTime=1, tolerance=1e-6);
+simulate(VariantB, stopTime=1, tolerance=1e-6);
+
+// omc reports only "Failed to build model" here; the C compiler error itself
+// is not in this log. For that, see _c_compile_error.log / README §Regenerating.
+print("@@ERR=" + getErrorString() + "@@\n");

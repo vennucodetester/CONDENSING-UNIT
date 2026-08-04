@@ -1,0 +1,25 @@
+// Build Model Exchange FMU 2.0 for ClosedLoopM1eCS -> fmu/RefrigerationTrainer.fmu
+//
+// LOAD SEQUENCE MUST MATCH run_m1e_cs.mos EXACTLY.
+// The previous version loaded MSL 4.1.0 and relied on directory auto-load of
+// RefrigerationTrainer/ (there is no package.order, so member load order was
+// filesystem-dependent). Load every file explicitly.
+clear();
+loadModel(Modelica, {"4.0.0"});
+loadModel(ExternalMedia);
+loadFile("vendor/ThermoCycle-library/ThermoCycle/package.mo");
+convertPackageToLibrary(ThermoCycle, Modelica, "4.1.0");
+loadFile("RefrigerationTrainer/package.mo");
+loadFile("RefrigerationTrainer/Flow1DimCS.mo");
+loadFile("RefrigerationTrainer/WallTemperatureSource.mo");
+loadFile("RefrigerationTrainer/CompressorEM.mo");
+loadFile("RefrigerationTrainer/ClosedLoopM1eCS.mo");
+junk := getErrorString();
+
+c := checkModel(RefrigerationTrainer.ClosedLoopM1eCS);
+print("@@CHK=" + c + "@@\n");
+
+p := buildModelFMU(RefrigerationTrainer.ClosedLoopM1eCS, fmuType="me", version="2.0");
+print("@@FMU=" + p + "@@\n");
+e := getErrorString();
+writeFile("_build_closed_loop_fmu.log", e);

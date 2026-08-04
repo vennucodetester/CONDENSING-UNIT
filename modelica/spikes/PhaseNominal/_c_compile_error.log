@@ -1,0 +1,19 @@
+# C compile error, captured 2026-08-02T14:53Z, OpenModelica v1.27.0 (64-bit)
+# Regenerate: run spikes/PhaseNominal/run_phase_nominal.mos, then:
+#   make -f MinRepro.makefile   /   make -f VariantA.makefile
+
+=== MinRepro ===
+MinRepro_02nls.c:160:87: error: no member named 'nominal' in 'struct INTEGER_ATTRIBUTE'
+  160 |   sysData->nominal[i] = data->modelData->integerVarsData[2] /* st.phase */ .attribute.nominal;
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^
+MinRepro_02nls.c:404:87: error: no member named 'nominal' in 'struct INTEGER_ATTRIBUTE'
+  404 |   sysData->nominal[i] = data->modelData->integerVarsData[2] /* st.phase */ .attribute.nominal;
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^
+
+=== VariantA (phase pinned to 1) ===
+VariantA_02nls.c:160:87: error: no member named 'nominal' in 'struct INTEGER_ATTRIBUTE'
+  160 |   sysData->nominal[i] = data->modelData->integerVarsData[2] /* st.phase */ .attribute.nominal;
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^
+VariantA_02nls.c:404:87: error: no member named 'nominal' in 'struct INTEGER_ATTRIBUTE'
+  404 |   sysData->nominal[i] = data->modelData->integerVarsData[2] /* st.phase */ .attribute.nominal;
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^

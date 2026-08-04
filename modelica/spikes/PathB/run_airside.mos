@@ -1,0 +1,11 @@
+loadModel(Modelica, {"4.0.0"});
+loadModel(ExternalMedia);
+loadFile("vendor/ThermoCycle-library/ThermoCycle/package.mo");
+convertPackageToLibrary(ThermoCycle, Modelica, "4.1.0");
+loadFile("spikes/PathB/PathB.mo");
+loadFile("spikes/PathB/AirSide.mo");
+junk := getErrorString();
+r1 := simulate(AirSideTest, stopTime=5, fileNamePrefix="AirSide_100pct", simflags="-override=mdot_air=0.40");
+print("@@RUN_100=" + r1.messages + "@@\n");
+r2 := simulate(AirSideTest, stopTime=5, fileNamePrefix="AirSide_040pct", simflags="-override=mdot_air=0.16");
+print("@@RUN_040=" + r2.messages + "@@\n");

@@ -1,0 +1,8 @@
+loadModel(Modelica, {"4.0.0"});
+setCommandLineOptions("--indexReductionMethod=dummyDerivatives");
+loadFile("vendor/AixLib/AixLib/package.mo");
+loadFile("RefrigerationTrainer/package.mo");
+loadFile("RefrigerationTrainer/R290PropertySmoke.mo");
+checkModel(RefrigerationTrainer.R290PropertySmoke);
+buildModelFMU(RefrigerationTrainer.R290PropertySmoke, version="2.0", fmuType="cs", fileNamePrefix="R290PropertySmoke");
+getErrorString();

@@ -1,0 +1,10 @@
+loadModel(Modelica, {"4.0.0"}); loadModel(ExternalMedia);
+loadFile("vendor/ThermoCycle-library/ThermoCycle/package.mo");
+convertPackageToLibrary(ThermoCycle, Modelica, "4.1.0");
+loadFile("RefrigerationTrainer/package.mo");
+loadFile("RefrigerationTrainer/Flow1DimCS.mo");
+loadFile("RefrigerationTrainer/WallTemperatureSource.mo");
+loadFile("RefrigerationTrainer/CompressorEM.mo");
+loadFile("RefrigerationTrainer/ClosedLoopM1eCS.mo");
+junk := getErrorString();
+print("@@" + checkModel(RefrigerationTrainer.ClosedLoopM1eCS) + "@@\n");

@@ -1,0 +1,31 @@
+// ClosedLoopM1e on OpenModelica 1.27.0's NEW BACKEND (--newBackend).
+// Model COMPLETELY UNCHANGED. No model edits, no generated-C patching.
+//
+// Run from the modelica/ directory:
+//     omc spikes/PhaseNominal/run_m1e_newbackend.mos
+//
+// Purpose: raw evidence only. The new backend is a different compilation
+// pipeline, so its failure mode is a second data point on the index-reduction
+// errors the old backend reports as `Derivative of expression ... is
+// non-existent`. It is WIP and NOT a viable route.
+//
+// This script asserts no diagnosis. See _newbackend_errors.txt for what it
+// actually said, and STATUS.md for what is and is not concluded from it.
+
+setCommandLineOptions("--newBackend");
+loadModel(Modelica, {"4.0.0"});
+loadModel(ExternalMedia);
+loadFile("vendor/ThermoCycle-library/ThermoCycle/package.mo");
+convertPackageToLibrary(ThermoCycle, Modelica, "4.1.0");
+loadFile("RefrigerationTrainer/package.mo");
+loadFile("RefrigerationTrainer/Flow1DimCS.mo");
+loadFile("RefrigerationTrainer/WallTemperatureSource.mo");
+loadFile("RefrigerationTrainer/ClosedLoopM1e.mo");
+junk := getErrorString();
+
+buildModel(RefrigerationTrainer.ClosedLoopM1e, stopTime=30, tolerance=1e-6);
+
+// Assign to a variable first. `writeFile(path, getErrorString())` writes nothing
+// and reports no error -- the silent-failure pattern again. See STATUS.md.
+errs := getErrorString();
+writeFile("spikes/PhaseNominal/_newbackend_errors.txt", errs);

@@ -1,0 +1,16 @@
+// Query specific time points from res_2000s_m2.mat using OMC val() function with string variable names
+fn := "res_2000s_m2.mat";
+times := {0.0, 60.0, 180.0, 300.0, 600.0, 1000.0, 1500.0, 2000.0};
+
+for t in times loop
+  p_su := val("p_suction_pa", t, fn);
+  p_dis := val("p_discharge_pa", t, fn);
+  mdot := val("m_dot_kg_s", t, fn);
+  sh := val("superheat_k", t, fn);
+  sc := val("subcooling_k", t, fn);
+  cmd := val("txv_opening_cmd", t, fn);
+  sat := val("txv_saturated", t, fn);
+  Q := val("Q_evap_w", t, fn);
+  W := val("W_comp_w", t, fn);
+  print(String(t) + " | p_su=" + String(p_su/1e5) + " | p_dis=" + String(p_dis/1e5) + " | mdot=" + String(mdot*1000) + " | SH=" + String(sh) + " | SC=" + String(sc) + " | cmd=" + String(cmd) + " | sat=" + String(sat) + " | Q=" + String(Q) + " | W=" + String(W) + "\n");
+end for;

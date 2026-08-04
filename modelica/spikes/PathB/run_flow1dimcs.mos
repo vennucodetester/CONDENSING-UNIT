@@ -1,0 +1,14 @@
+loadModel(Modelica, {"4.0.0"});
+loadModel(ExternalMedia);
+loadFile("vendor/ThermoCycle-library/ThermoCycle/package.mo");
+convertPackageToLibrary(ThermoCycle, Modelica, "4.1.0");
+loadFile("RefrigerationTrainer/package.mo");
+loadFile("RefrigerationTrainer/Flow1DimCS.mo");
+loadFile("spikes/PathB/PathB.mo");
+loadFile("spikes/PathB/Flow1DimCS_test.mo");
+c := checkModel(Flow1DimCS_test); print("@@CHK=" + c + "@@
+"); print("@@CE=" + getErrorString() + "@@
+");
+r := simulate(Flow1DimCS_test, stopTime=5, fileNamePrefix="Flow1DimCS_test");
+print("@@RESULT=" + r.resultFile + "@@\n");
+print("@@ERR=" + getErrorString() + "@@\n");

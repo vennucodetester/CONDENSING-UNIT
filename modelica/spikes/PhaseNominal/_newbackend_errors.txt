@@ -1,0 +1,8 @@
+[C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo:362:13-366:19:writable] Warning: Pure function 'RefrigerationTrainer.ClosedLoopM1e.txv.Medium.setState_pTX' contains a call to impure function 'RefrigerationTrainer.ClosedLoopM1e.txv.Medium.setState_pT'.
+Warning: NBAlias.setStartFixed: Alias set with conflicting unfixed start values detected. Use -d=dumprepl for more information.
+Error: Internal error NBResolveSingularities.indexReduction failed because slicing during index reduction is not yet supported.
+Sliced Dummies:
+  [STAT] (5) Real[5] cond.Cells.p (start = {cond.Cells[$Cells1].pstart for $Cells1 in 1:5}, min = {0.0 for $f3 in 1:5}, max = {1e8 for $f2 in 1:5}, nominal = {1e5 for $f1 in 1:5})
+	slice: {0, 1, 2, 3}
+  [STAT] (5) Real[5] evap.Cells.p (start = {evap.Cells[$Cells1].pstart for $Cells1 in 1:5}, min = {0.0 for $f3 in 1:5}, max = {1e8 for $f2 in 1:5}, nominal = {1e5 for $f1 in 1:5})
+	slice: {0, 1, 2, 3}

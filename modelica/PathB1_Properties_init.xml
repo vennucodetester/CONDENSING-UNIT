@@ -1,0 +1,259 @@
+<?xml version = "1.0" encoding="UTF-8"?>
+
+<!-- description of the model interface using an extention of the FMI standard -->
+<fmiModelDescription
+  fmiVersion                          = "1.0"
+
+  modelName                           = "PathB1_Properties"
+  modelIdentifier                     = "PathB1_Properties"
+
+  OPENMODELICAHOME                    = "C:/Program Files/OpenModelica1.26.3-64bit"
+
+  guid                                = "{bc9abf7a-bec4-4d16-8553-5dce69289c5b}"
+
+  description                         = ""
+  generationTool                      = "OpenModelica Compiler OpenModelica v1.26.3 (64-bit)"
+  generationDateAndTime               = "2026-08-02T03:05:52Z"
+
+  variableNamingConvention            = "structured"
+
+  numberOfEventIndicators             = "0"  cmt_numberOfEventIndicators             = "NG:       number of zero crossings,                           FMI"
+  numberOfTimeEvents                  = "0"  cmt_numberOfTimeEvents                  = "NG_SAM:   number of zero crossings that are samples,          OMC"
+
+  numberOfInputVariables              = "0"  cmt_numberOfInputVariables              = "NI:       number of inputvar on topmodel,                     OMC"
+  numberOfOutputVariables             = "0"  cmt_numberOfOutputVariables             = "NO:       number of outputvar on topmodel,                    OMC"
+
+  numberOfExternalObjects             = "0"  cmt_numberOfExternalObjects             = "NEXT:     number of external objects,                         OMC"
+  numberOfFunctions                   = "3"  cmt_numberOfFunctions                   = "NFUNC:    number of functions used by the simulation,         OMC"
+
+  numberOfContinuousStates            = "0"  cmt_numberOfContinuousStates            = "NX:       number of states,                                   FMI"
+  numberOfRealAlgebraicVariables      = "14"  cmt_numberOfRealAlgebraicVariables      = "NY:       number of real variables,                           OMC"
+  numberOfRealAlgebraicAliasVariables = "0"  cmt_numberOfRealAlgebraicAliasVariables = "NA:       number of alias variables,                          OMC"
+  numberOfRealParameters              = "1"  cmt_numberOfRealParameters              = "NP:       number of parameters,                               OMC"
+
+  numberOfIntegerAlgebraicVariables   = "0"  cmt_numberOfIntegerAlgebraicVariables   = "NYINT:    number of alg. int variables,                       OMC"
+  numberOfIntegerAliasVariables       = "0"  cmt_numberOfIntegerAliasVariables       = "NAINT:    number of alias int variables,                      OMC"
+  numberOfIntegerParameters           = "0"  cmt_numberOfIntegerParameters           = "NPINT:    number of int parameters,                           OMC"
+
+  numberOfStringAlgebraicVariables    = "0"  cmt_numberOfStringAlgebraicVariables    = "NYSTR:    number of alg. string variables,                    OMC"
+  numberOfStringAliasVariables        = "0"  cmt_numberOfStringAliasVariables        = "NASTR:    number of alias string variables,                   OMC"
+  numberOfStringParameters            = "0"  cmt_numberOfStringParameters            = "NPSTR:    number of string parameters,                        OMC"
+
+  numberOfBooleanAlgebraicVariables   = "1"  cmt_numberOfBooleanAlgebraicVariables   = "NYBOOL:   number of alg. bool variables,                      OMC"
+  numberOfBooleanAliasVariables       = "0"  cmt_numberOfBooleanAliasVariables       = "NABOOL:   number of alias bool variables,                     OMC"
+  numberOfBooleanParameters           = "0"  cmt_numberOfBooleanParameters           = "NPBOOL:   number of bool parameters,                          OMC" >
+
+
+  <!-- startTime, stopTime, tolerance are FMI specific, all others are OMC specific -->
+  <DefaultExperiment
+    startTime      = "0"
+    stopTime       = "1"
+    stepSize       = "0.002"
+    tolerance      = "1e-06"
+    solver         = "dassl"
+    outputFormat   = "mat"
+    variableFilter = ".*" />
+
+  <!-- variables in the model -->
+  <ModelVariables>
+
+  <ScalarVariable
+    name = "sat.Tsat"
+    valueReference = "1000"
+    description = "saturation temperature"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "0" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo" startLine = "61" startColumn = "5" endLine = "61" endColumn = "46" fileWritable = "true">
+    <Real start="288.15" fixed="false" useNominal="true" nominal="300.0" min="1.0" max="1e4" unit="K" displayUnit="degC" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "sat.dTp"
+    valueReference = "1001"
+    description = "derivative of Ts wrt pressure"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "1" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo" startLine = "62" startColumn = "5" endLine = "62" endColumn = "45" fileWritable = "true">
+    <Real fixed="false" useNominal="false" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "sat.ddldp"
+    valueReference = "1002"
+    description = "derivative of dls wrt pressure"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "2" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo" startLine = "63" startColumn = "5" endLine = "63" endColumn = "64" fileWritable = "true">
+    <Real fixed="false" useNominal="false" unit="s2/m2" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "sat.ddvdp"
+    valueReference = "1003"
+    description = "derivative of dvs wrt pressure"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "3" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo" startLine = "64" startColumn = "5" endLine = "64" endColumn = "64" fileWritable = "true">
+    <Real fixed="false" useNominal="false" unit="s2/m2" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "sat.dhldp"
+    valueReference = "1004"
+    description = "derivative of hls wrt pressure"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "4" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo" startLine = "65" startColumn = "5" endLine = "65" endColumn = "65" fileWritable = "true">
+    <Real fixed="false" useNominal="false" unit="J.m.s2/kg2" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "sat.dhvdp"
+    valueReference = "1005"
+    description = "derivative of hvs wrt pressure"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "5" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo" startLine = "66" startColumn = "5" endLine = "66" endColumn = "65" fileWritable = "true">
+    <Real fixed="false" useNominal="false" unit="J.m.s2/kg2" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "sat.dl"
+    valueReference = "1006"
+    description = "density at bubble line (for pressure ps)"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "6" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo" startLine = "67" startColumn = "5" endLine = "67" endColumn = "58" fileWritable = "true">
+    <Real start="1.0" fixed="false" useNominal="true" nominal="1.0" min="0.0" max="1e5" unit="kg/m3" displayUnit="g/cm3" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "sat.dv"
+    valueReference = "1007"
+    description = "density at dew line (for pressure ps)"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "7" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo" startLine = "68" startColumn = "5" endLine = "68" endColumn = "55" fileWritable = "true">
+    <Real start="1.0" fixed="false" useNominal="true" nominal="1.0" min="0.0" max="1e5" unit="kg/m3" displayUnit="g/cm3" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "sat.hl"
+    valueReference = "1008"
+    description = "specific enthalpy at bubble line (for pressure ps)"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "8" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo" startLine = "69" startColumn = "5" endLine = "69" endColumn = "77" fileWritable = "true">
+    <Real fixed="false" useNominal="true" nominal="1e6" min="-1e10" max="1e10" unit="J/kg" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "sat.hv"
+    valueReference = "1009"
+    description = "specific enthalpy at dew line (for pressure ps)"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "9" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo" startLine = "70" startColumn = "5" endLine = "70" endColumn = "74" fileWritable = "true">
+    <Real fixed="false" useNominal="true" nominal="1e6" min="-1e10" max="1e10" unit="J/kg" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "sat.psat"
+    valueReference = "1010"
+    description = "saturation pressure"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "10" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo" startLine = "71" startColumn = "5" endLine = "71" endColumn = "48" fileWritable = "true">
+    <Real start="1e5" fixed="false" useNominal="true" nominal="1e5" min="0.0" max="1e8" unit="Pa" displayUnit="bar" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "sat.sigma"
+    valueReference = "1011"
+    description = "surface tension"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "11" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo" startLine = "72" startColumn = "5" endLine = "72" endColumn = "43" fileWritable = "true">
+    <Real fixed="false" useNominal="false" unit="N/m" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "sat.sl"
+    valueReference = "1012"
+    description = "specific entropy at bubble line (for pressure ps)"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "12" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo" startLine = "73" startColumn = "5" endLine = "73" endColumn = "75" fileWritable = "true">
+    <Real fixed="false" useNominal="true" nominal="1000.0" min="-1e7" max="1e7" unit="J/(kg.K)" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "sat.sv"
+    valueReference = "1013"
+    description = "specific entropy at dew line (for pressure ps)"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "13" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo" startLine = "74" startColumn = "5" endLine = "74" endColumn = "72" fileWritable = "true">
+    <Real fixed="false" useNominal="true" nominal="1000.0" min="-1e7" max="1e7" unit="J/(kg.K)" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "p_pa"
+    valueReference = "1014"
+    description = "evaporating pressure"
+    variability = "parameter" isDiscrete = "true"
+    causality = "parameter" isValueChangeable = "true"
+    alias = "noAlias"
+    classIndex = "0" classType = "rPar"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/spikes/PathB/PathB.mo" startLine = "38" startColumn = "3" endLine = "38" endColumn = "54" fileWritable = "true">
+    <Real start="485000.0" fixed="true" useNominal="false" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "$whenCondition1"
+    valueReference = "1015"
+    description = "terminal()"
+    variability = "discrete" isDiscrete = "true"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "0" classType = "bAlg"
+    isProtected = "true" hideResult = "true" isEncrypted = "false" initNonlinear = "false"
+    fileName = "C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/spikes/PathB/PathB.mo" startLine = "41" startColumn = "3" endLine = "53" endColumn = "11" fileWritable = "true">
+    <Boolean fixed="true" />
+  </ScalarVariable>
+
+
+
+  </ModelVariables>
+
+
+</fmiModelDescription>
+

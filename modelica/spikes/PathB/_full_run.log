@@ -1,0 +1,305 @@
+true
+""
+true
+""
+true
+"[C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/vendor/ThermoCycle-library/ThermoCycle/Components/HeatFlow/HeatTransfer/SinglePhaseCorrelations/DittusBoelter1930.mo:50:31-50:250:writable] Warning: Lexer treating \\ as \\\\, since \\< is not a valid Modelica escape sequence.
+Warning: ThermoCycle requested package Modelica of version 3.2.1. Modelica 4.1.0 is used instead which states that it is only compatible with a conversion script. Use convertPackageToLibrary(ThermoCycle, Modelica, \"4.1.0\") to run the conversion script or proceed with potential issues as a result.
+"
+true
+""
+true
+""
+record SimulationResult
+    resultFile = "C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/PathB1_Properties_res.mat",
+    simulationOptions = "startTime = 0.0, stopTime = 1.0, numberOfIntervals = 500, tolerance = 1e-6, method = 'dassl', fileNamePrefix = 'PathB1_Properties', options = '', outputFormat = 'mat', variableFilter = '.*', cflags = '', simflags = ''",
+    messages = "calc_transport has the value of 1
+TTSE is off
+enable_TTSE has the value of 0
+BICUBIC is off
+enable_BICUBIC has the value of 0
+enable_EXTTP has the value of 1
+twophase_derivsmoothing_xend has the value of 0.0
+rho_smoothing_xend has the value of 0.0
+debug has the value of 0
+LOG_SUCCESS       | info    | The initialization finished successfully without homotopy method.
+LOG_STDOUT        | info    | @@Tsat_C=0.721696
+LOG_STDOUT        | info    | @@hl=201807
+LOG_STDOUT        | info    | @@hv=575661
+LOG_STDOUT        | info    | @@dl=527.617
+LOG_STDOUT        | info    | @@dv=10.5727
+LOG_STDOUT        | info    | @@ddldp=-9.20904e-05
+LOG_STDOUT        | info    | @@ddvdp=2.10785e-05
+LOG_STDOUT        | info    | @@dhldp=0.170184
+LOG_STDOUT        | info    | @@dhvdp=0.0746785
+LOG_STDOUT        | info    | @@dTp=6.78997e-05
+LOG_SUCCESS       | info    | The simulation finished successfully.
+",
+    timeFrontend = 8.4899365,
+    timeBackend = 0.0404882,
+    timeSimCode = 0.0390895,
+    timeTemplates = 0.0905039,
+    timeCompile = 5.9098613,
+    timeSimulation = 1.8482011,
+    timeTotal = 16.4194473
+end SimulationResult;
+
+
+"[C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/spikes/PathB/run_pathB.mos:24:1-24:50:writable] Error: Variable r1.resultFile not found in scope <global scope>.
+[C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/spikes/PathB/run_pathB.mos:25:1-25:43:writable] Error: Variable r1.messages not found in scope <global scope>.
+"
+record SimulationResult
+    resultFile = "C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/PathB3_SingleCell_res.mat",
+    simulationOptions = "startTime = 0.0, stopTime = 10.0, numberOfIntervals = 500, tolerance = 1e-6, method = 'dassl', fileNamePrefix = 'PathB3_SingleCell', options = '', outputFormat = 'mat', variableFilter = '.*', cflags = '', simflags = ''",
+    messages = "calc_transport has the value of 1
+TTSE is off
+enable_TTSE has the value of 0
+BICUBIC is off
+enable_BICUBIC has the value of 0
+enable_EXTTP has the value of 1
+twophase_derivsmoothing_xend has the value of 0.0
+rho_smoothing_xend has the value of 0.0
+debug has the value of 0
+LOG_SUCCESS       | info    | The initialization finished successfully without homotopy method.
+LOG_SUCCESS       | info    | The simulation finished successfully.
+",
+    timeFrontend = 18.2551659,
+    timeBackend = 0.0895616,
+    timeSimCode = 0.0380077,
+    timeTemplates = 0.0888887,
+    timeCompile = 5.7920863,
+    timeSimulation = 1.5275483,
+    timeTotal = 25.7927304
+end SimulationResult;
+
+
+"[C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo:362:13-366:19:writable] Warning: Pure function 'PathB3_SingleCell.source.Medium.setState_pTX' contains a call to impure function 'PathB3_SingleCell.source.Medium.setState_pT'.
+Warning: The initial conditions are not fully specified. For more information set -d=initialization. In OMEdit Tools->Options->Simulation->Show additional information from the initialization process, in OMNotebook call setCommandLineOptions(\"-d=initialization\").
+[C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/spikes/PathB/run_pathB.mos:30:1-30:50:writable] Error: Variable r3.resultFile not found in scope <global scope>.
+[C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/spikes/PathB/run_pathB.mos:31:1-31:43:writable] Error: Variable r3.messages not found in scope <global scope>.
+"
+record SimulationResult
+    resultFile = "",
+    simulationOptions = "startTime = 0.0, stopTime = 20.0, numberOfIntervals = 200, tolerance = 1e-6, method = 'dassl', fileNamePrefix = 'PathB2_Flow1Dim', options = '', outputFormat = 'mat', variableFilter = '.*', cflags = '', simflags = ''",
+    messages = "Failed to build model: PathB2_Flow1Dim",
+    timeFrontend = 27.1172769,
+    timeBackend = 0.3854104,
+    timeSimCode = 0.1015232,
+    timeTemplates = 0.1387893,
+    timeCompile = 2.2736317,
+    timeSimulation = 0.0,
+    timeTotal = 30.0166717
+end SimulationResult;
+
+
+
+@@STEP2_BUILDLOG_START
+[C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo:362:13-366:19:writable] Warning: Pure function 'PathB2_Flow1Dim.source.Medium.setState_pTX' contains a call to impure function 'PathB2_Flow1Dim.source.Medium.setState_pT'.
+Warning: The model contains alias variables with redundant start and/or conflicting nominal values. It is recommended to resolve the conflicts, because otherwise the system could be hard to solve. To print the conflicting alias sets and the chosen candidates please use -d=aliasConflicts.
+Warning: The initial conditions are not fully specified. For more information set -d=initialization. In OMEdit Tools->Options->Simulation->Show additional information from the initialization process, in OMNotebook call setCommandLineOptions("-d=initialization").
+Error: Error building simulator. Build log: mingw32-make: Entering directory 'C:/Users/silam/OneDrive/DOCUME~1/CONDEN~1/modelica'
+clang -municode  -Os -DOM_HAVE_PTHREADS -Wno-parentheses-equality -falign-functions -mstackrealign -msse2 -mfpmath=sse     "-IC:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Resources/Include" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc/c" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc" -I. -DOPENMODELICA_XML_FROM_FILE_AT_RUNTIME -DOMC_MODEL_PREFIX=PathB2_Flow1Dim -DOMC_NUM_MIXED_SYSTEMS=0 -DOMC_NUM_LINEAR_SYSTEMS=10 -DOMC_NUM_NONLINEAR_SYSTEMS=0 -DOMC_NDELAY_EXPRESSIONS=0 -DOMC_NVAR_STRING=0  -c -o PathB2_Flow1Dim.o PathB2_Flow1Dim.c
+clang -municode  -Os -DOM_HAVE_PTHREADS -Wno-parentheses-equality -falign-functions -mstackrealign -msse2 -mfpmath=sse     "-IC:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Resources/Include" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc/c" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc" -I. -DOPENMODELICA_XML_FROM_FILE_AT_RUNTIME -DOMC_MODEL_PREFIX=PathB2_Flow1Dim -DOMC_NUM_MIXED_SYSTEMS=0 -DOMC_NUM_LINEAR_SYSTEMS=10 -DOMC_NUM_NONLINEAR_SYSTEMS=0 -DOMC_NDELAY_EXPRESSIONS=0 -DOMC_NVAR_STRING=0  -c -o PathB2_Flow1Dim_functions.o PathB2_Flow1Dim_functions.c
+clang -municode  -Os -DOM_HAVE_PTHREADS -Wno-parentheses-equality -falign-functions -mstackrealign -msse2 -mfpmath=sse     "-IC:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Resources/Include" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc/c" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc" -I. -DOPENMODELICA_XML_FROM_FILE_AT_RUNTIME -DOMC_MODEL_PREFIX=PathB2_Flow1Dim -DOMC_NUM_MIXED_SYSTEMS=0 -DOMC_NUM_LINEAR_SYSTEMS=10 -DOMC_NUM_NONLINEAR_SYSTEMS=0 -DOMC_NDELAY_EXPRESSIONS=0 -DOMC_NVAR_STRING=0  -c -o PathB2_Flow1Dim_records.o PathB2_Flow1Dim_records.c
+clang -municode  -Os -DOM_HAVE_PTHREADS -Wno-parentheses-equality -falign-functions -mstackrealign -msse2 -mfpmath=sse     "-IC:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Resources/Include" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc/c" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc" -I. -DOPENMODELICA_XML_FROM_FILE_AT_RUNTIME -DOMC_MODEL_PREFIX=PathB2_Flow1Dim -DOMC_NUM_MIXED_SYSTEMS=0 -DOMC_NUM_LINEAR_SYSTEMS=10 -DOMC_NUM_NONLINEAR_SYSTEMS=0 -DOMC_NDELAY_EXPRESSIONS=0 -DOMC_NVAR_STRING=0  -c -o PathB2_Flow1Dim_01exo.o PathB2_Flow1Dim_01exo.c
+clang -municode  -Os -DOM_HAVE_PTHREADS -Wno-parentheses-equality -falign-functions -mstackrealign -msse2 -mfpmath=sse     "-IC:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Resources/Include" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc/c" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc" -I. -DOPENMODELICA_XML_FROM_FILE_AT_RUNTIME -DOMC_MODEL_PREFIX=PathB2_Flow1Dim -DOMC_NUM_MIXED_SYSTEMS=0 -DOMC_NUM_LINEAR_SYSTEMS=10 -DOMC_NUM_NONLINEAR_SYSTEMS=0 -DOMC_NDELAY_EXPRESSIONS=0 -DOMC_NVAR_STRING=0  -c -o PathB2_Flow1Dim_02nls.o PathB2_Flow1Dim_02nls.c
+clang -municode  -Os -DOM_HAVE_PTHREADS -Wno-parentheses-equality -falign-functions -mstackrealign -msse2 -mfpmath=sse     "-IC:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Resources/Include" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc/c" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc" -I. -DOPENMODELICA_XML_FROM_FILE_AT_RUNTIME -DOMC_MODEL_PREFIX=PathB2_Flow1Dim -DOMC_NUM_MIXED_SYSTEMS=0 -DOMC_NUM_LINEAR_SYSTEMS=10 -DOMC_NUM_NONLINEAR_SYSTEMS=0 -DOMC_NDELAY_EXPRESSIONS=0 -DOMC_NVAR_STRING=0  -c -o PathB2_Flow1Dim_03lsy.o PathB2_Flow1Dim_03lsy.c
+clang -municode  -Os -DOM_HAVE_PTHREADS -Wno-parentheses-equality -falign-functions -mstackrealign -msse2 -mfpmath=sse     "-IC:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Resources/Include" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc/c" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc" -I. -DOPENMODELICA_XML_FROM_FILE_AT_RUNTIME -DOMC_MODEL_PREFIX=PathB2_Flow1Dim -DOMC_NUM_MIXED_SYSTEMS=0 -DOMC_NUM_LINEAR_SYSTEMS=10 -DOMC_NUM_NONLINEAR_SYSTEMS=0 -DOMC_NDELAY_EXPRESSIONS=0 -DOMC_NVAR_STRING=0  -c -o PathB2_Flow1Dim_04set.o PathB2_Flow1Dim_04set.c
+clang -municode  -Os -DOM_HAVE_PTHREADS -Wno-parentheses-equality -falign-functions -mstackrealign -msse2 -mfpmath=sse     "-IC:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Resources/Include" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc/c" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc" -I. -DOPENMODELICA_XML_FROM_FILE_AT_RUNTIME -DOMC_MODEL_PREFIX=PathB2_Flow1Dim -DOMC_NUM_MIXED_SYSTEMS=0 -DOMC_NUM_LINEAR_SYSTEMS=10 -DOMC_NUM_NONLINEAR_SYSTEMS=0 -DOMC_NDELAY_EXPRESSIONS=0 -DOMC_NVAR_STRING=0  -c -o PathB2_Flow1Dim_05evt.o PathB2_Flow1Dim_05evt.c
+clang -municode  -Os -DOM_HAVE_PTHREADS -Wno-parentheses-equality -falign-functions -mstackrealign -msse2 -mfpmath=sse     "-IC:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Resources/Include" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc/c" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc" -I. -DOPENMODELICA_XML_FROM_FILE_AT_RUNTIME -DOMC_MODEL_PREFIX=PathB2_Flow1Dim -DOMC_NUM_MIXED_SYSTEMS=0 -DOMC_NUM_LINEAR_SYSTEMS=10 -DOMC_NUM_NONLINEAR_SYSTEMS=0 -DOMC_NDELAY_EXPRESSIONS=0 -DOMC_NVAR_STRING=0  -c -o PathB2_Flow1Dim_06inz.o PathB2_Flow1Dim_06inz.c
+clang -municode  -Os -DOM_HAVE_PTHREADS -Wno-parentheses-equality -falign-functions -mstackrealign -msse2 -mfpmath=sse     "-IC:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Resources/Include" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc/c" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc" -I. -DOPENMODELICA_XML_FROM_FILE_AT_RUNTIME -DOMC_MODEL_PREFIX=PathB2_Flow1Dim -DOMC_NUM_MIXED_SYSTEMS=0 -DOMC_NUM_LINEAR_SYSTEMS=10 -DOMC_NUM_NONLINEAR_SYSTEMS=0 -DOMC_NDELAY_EXPRESSIONS=0 -DOMC_NVAR_STRING=0  -c -o PathB2_Flow1Dim_07dly.o PathB2_Flow1Dim_07dly.c
+clang -municode  -Os -DOM_HAVE_PTHREADS -Wno-parentheses-equality -falign-functions -mstackrealign -msse2 -mfpmath=sse     "-IC:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Resources/Include" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc/c" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc" -I. -DOPENMODELICA_XML_FROM_FILE_AT_RUNTIME -DOMC_MODEL_PREFIX=PathB2_Flow1Dim -DOMC_NUM_MIXED_SYSTEMS=0 -DOMC_NUM_LINEAR_SYSTEMS=10 -DOMC_NUM_NONLINEAR_SYSTEMS=0 -DOMC_NDELAY_EXPRESSIONS=0 -DOMC_NVAR_STRING=0  -c -o PathB2_Flow1Dim_08bnd.o PathB2_Flow1Dim_08bnd.c
+clang -municode  -Os -DOM_HAVE_PTHREADS -Wno-parentheses-equality -falign-functions -mstackrealign -msse2 -mfpmath=sse     "-IC:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Resources/Include" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc/c" -I"C:/Program Files/OpenModelica1.26.3-64bit/include/omc" -I. -DOPENMODELICA_XML_FROM_FILE_AT_RUNTIME -DOMC_MODEL_PREFIX=PathB2_Flow1Dim -DOMC_NUM_MIXED_SYSTEMS=0 -DOMC_NUM_LINEAR_SYSTEMS=10 -DOMC_NUM_NONLINEAR_SYSTEMS=0 -DOMC_NDELAY_EXPRESSIONS=0 -DOMC_NVAR_STRING=0  -c -o PathB2_Flow1Dim_09alg.o PathB2_Flow1Dim_09alg.c
+In file included from PathB2_Flow1Dim.c:7:
+In file included from ./PathB2_Flow1Dim_model.h:28:
+./PathB2_Flow1Dim_functions.h:119:9: error: unknown type name 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external'; did you mean 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array'?
+  119 | typedef PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external PathB2__Flow1Dim_evap_Medium_SaturationProperties_external;
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |         PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array
+./PathB2_Flow1Dim_functions.h:48:22: note: 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array' declared here
+   48 | typedef base_array_t PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array;
+      |                      ^
+In file included from PathB2_Flow1Dim_08bnd.c:2:
+In file included from ./PathB2_Flow1Dim_model.h:28:
+./PathB2_Flow1Dim_functions.h:119:9: error: unknown type name 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external'; did you mean 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array'?
+  119 | typedef PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external PathB2__Flow1Dim_evap_Medium_SaturationProperties_external;
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |         PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array
+./PathB2_Flow1Dim_functions.h:48:22: note: 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array' declared here
+   48 | typedef base_array_t PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array;
+      |                      ^
+In file included from PathB2_Flow1Dim_02nls.c:2:
+In file included from ./PathB2_Flow1Dim_model.h:28:
+./PathB2_Flow1Dim_functions.h:119:9: error: unknown type name 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external'; did you mean 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array'?
+  119 | typedef PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external PathB2__Flow1Dim_evap_Medium_SaturationProperties_external;
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |         PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array
+./PathB2_Flow1Dim_functions.h:48:22: note: 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array' declared here
+   48 | typedef base_array_t PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array;
+      |                      ^
+1 error generated.
+In file included from PathB2_Flow1Dim_functions.c:2:
+./PathB2_Flow1Dim_functions.h:119:9: error: unknown type name 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external'; did you mean 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array'?
+  119 | typedef PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external PathB2__Flow1Dim_evap_Medium_SaturationProperties_external;
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |         PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array
+./PathB2_Flow1Dim_functions.h:48:22: note: 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array' declared here
+   48 | typedef base_array_t PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array;
+      |                      ^
+1 error generated.
+mingw32-make: *** [<builtin>: PathB2_Flow1Dim_02nls.o] Error 1
+mingw32-make: *** Waiting for unfinished jobs....
+1 error generated.
+In file included from PathB2_Flow1Dim_06inz.c:2:
+In file included from ./PathB2_Flow1Dim_model.h:28:
+./PathB2_Flow1Dim_functions.h:119:9: error: unknown type name 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external'; did you mean 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array'?
+  119 | typedef PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external PathB2__Flow1Dim_evap_Medium_SaturationProperties_external;
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |         PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array
+./PathB2_Flow1Dim_functions.h:48:22: note: 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array' declared here
+   48 | typedef base_array_t PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array;
+      |                      ^
+In file included from PathB2_Flow1Dim_07dly.c:2:
+In file included from ./PathB2_Flow1Dim_model.h:28:
+./PathB2_Flow1Dim_functions.h:119:9: error: unknown type name 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external'; did you mean 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array'?
+  119 | typedef PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external PathB2__Flow1Dim_evap_Medium_SaturationProperties_external;
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |         PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array
+./PathB2_Flow1Dim_functions.h:48:22: note: 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array' declared here
+   48 | typedef base_array_t PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array;
+      |                      ^
+mingw32-make: *** [<builtin>: PathB2_Flow1Dim_08bnd.o] Error 1
+1 error generated.
+In file included from PathB2_Flow1Dim_01exo.c:2:
+In file included from ./PathB2_Flow1Dim_model.h:28:
+./PathB2_Flow1Dim_functions.h:119:9: error: unknown type name 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external'; did you mean 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array'?
+  119 | typedef PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external PathB2__Flow1Dim_evap_Medium_SaturationProperties_external;
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |         PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array
+./PathB2_Flow1Dim_functions.h:48:22: note: 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array' declared here
+   48 | typedef base_array_t PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array;
+      |                      ^
+In file included from PathB2_Flow1Dim_04set.c:2:
+In file included from ./PathB2_Flow1Dim_model.h:28:
+./PathB2_Flow1Dim_functions.h:119:9: error: unknown type name 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external'; did you mean 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array'?
+  119 | typedef PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external PathB2__Flow1Dim_evap_Medium_SaturationProperties_external;
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |         PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array
+./PathB2_Flow1Dim_functions.h:48:22: note: 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array' declared here
+   48 | typedef base_array_t PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array;
+      |                      ^
+mingw32-make: *** [<builtin>: PathB2_Flow1Dim.o] Error 1
+1 error generated.
+1 error generated.
+1 error generated.
+1 error generated.
+mingw32-make: *** [<builtin>: PathB2_Flow1Dim_07dly.o] Error 1
+In file included from PathB2_Flow1Dim_05evt.c:2:
+In file included from ./PathB2_Flow1Dim_model.h:28:
+./PathB2_Flow1Dim_functions.h:119:9: error: unknown type name 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external'; did you mean 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array'?
+  119 | typedef PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external PathB2__Flow1Dim_evap_Medium_SaturationProperties_external;
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |         PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array
+./PathB2_Flow1Dim_functions.h:48:22: note: 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array' declared here
+   48 | typedef base_array_t PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array;
+      |                      ^
+mingw32-make: *** [<builtin>: PathB2_Flow1Dim_01exo.o] Error 1
+mingw32-make: *** [<builtin>: PathB2_Flow1Dim_functions.o] Error 1
+mingw32-make: *** [<builtin>: PathB2_Flow1Dim_04set.o] Error 1
+1 error generated.
+mingw32-make: *** [<builtin>: PathB2_Flow1Dim_06inz.o] Error 1
+In file included from PathB2_Flow1Dim_03lsy.c:2:
+In file included from ./PathB2_Flow1Dim_model.h:28:
+./PathB2_Flow1Dim_functions.h:119:9: error: unknown type name 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external'; did you mean 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array'?
+  119 | typedef PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external PathB2__Flow1Dim_evap_Medium_SaturationProperties_external;
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |         PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array
+./PathB2_Flow1Dim_functions.h:48:22: note: 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array' declared here
+   48 | typedef base_array_t PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array;
+      |                      ^
+mingw32-make: *** [<builtin>: PathB2_Flow1Dim_05evt.o] Error 1
+In file included from PathB2_Flow1Dim_09alg.c:2:
+In file included from ./PathB2_Flow1Dim_model.h:28:
+./PathB2_Flow1Dim_functions.h:119:9: error: unknown type name 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external'; did you mean 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array'?
+  119 | typedef PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external PathB2__Flow1Dim_evap_Medium_SaturationProperties_external;
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |         PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array
+./PathB2_Flow1Dim_functions.h:1 error generated.
+48:22: note: 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array' declared here
+   48 | typedef base_array_t PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array;
+      |                      ^
+1 error generated.
+mingw32-make: *** [<builtin>: PathB2_Flow1Dim_03lsy.o] Error 1
+In file included from PathB2_Flow1Dim_records.c:5:
+./PathB2_Flow1Dim_functions.h:119:9: error: unknown type name 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external'; did you mean 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array'?
+  119 | typedef PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_external PathB2__Flow1Dim_evap_Medium_SaturationProperties_external;
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |         PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array
+./PathB2_Flow1Dim_functions.h:48:22: note: 'PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array' declared here
+   48 | typedef base_array_t PathB2__Flow1Dim_evap_Cells_Medium_SaturationProperties_array;
+      |                      ^
+mingw32-make: *** [<builtin>: PathB2_Flow1Dim_09alg.o] Error 1
+PathB2_Flow1Dim_records.c:241:8: error: no member named '_Tsat' in 'struct base_array_s'
+  241 |   dst->_Tsat = src->_Tsat;
+      |   ~~~  ^
+PathB2_Flow1Dim_records.c:242:8: error: no member named '_dTp' in 'struct base_array_s'
+  242 |   dst->_dTp = src->_dTp;
+      |   ~~~  ^
+PathB2_Flow1Dim_records.c:243:8: error: no member named '_ddldp' in 'struct base_array_s'
+  243 |   dst->_ddldp = src->_ddldp;
+      |   ~~~  ^
+PathB2_Flow1Dim_records.c:244:8: error: no member named '_ddvdp' in 'struct base_array_s'
+  244 |   dst->_ddvdp = src->_ddvdp;
+      |   ~~~  ^
+PathB2_Flow1Dim_records.c:245:8: error: no member named '_dhldp' in 'struct base_array_s'
+  245 |   dst->_dhldp = src->_dhldp;
+      |   ~~~  ^
+PathB2_Flow1Dim_records.c:246:8: error: no member named '_dhvdp' in 'struct base_array_s'
+  246 |   dst->_dhvdp = src->_dhvdp;
+      |   ~~~  ^
+PathB2_Flow1Dim_records.c:247:8: error: no member named '_dl' in 'struct base_array_s'
+  247 |   dst->_dl = src->_dl;
+      |   ~~~  ^
+PathB2_Flow1Dim_records.c:248:8: error: no member named '_dv' in 'struct base_array_s'
+  248 |   dst->_dv = src->_dv;
+      |   ~~~  ^
+PathB2_Flow1Dim_records.c:249:8: error: no member named '_hl' in 'struct base_array_s'
+  249 |   dst->_hl = src->_hl;
+      |   ~~~  ^
+PathB2_Flow1Dim_records.c:250:8: error: no member named '_hv' in 'struct base_array_s'
+  250 |   dst->_hv = src->_hv;
+      |   ~~~  ^
+PathB2_Flow1Dim_records.c:251:8: error: no member named '_psat' in 'struct base_array_s'
+  251 |   dst->_psat = src->_psat;
+      |   ~~~  ^
+PathB2_Flow1Dim_records.c:252:8: error: no member named '_sigma' in 'struct base_array_s'
+  252 |   dst->_sigma = src->_sigma;
+      |   ~~~  ^
+PathB2_Flow1Dim_records.c:253:8: error: no member named '_sl' in 'struct base_array_s'
+  253 |   dst->_sl = src->_sl;
+      |   ~~~  ^
+PathB2_Flow1Dim_records.c:254:8: error: no member named '_sv' in 'struct base_array_s'
+  254 |   dst->_sv = src->_sv;
+      |   ~~~  ^
+PathB2_Flow1Dim_records.c:259:21: error: no member named '_Tsat' in 'struct base_array_s'
+  259 |   dst->_Tsat = src->_Tsat;
+      |                ~~~  ^
+PathB2_Flow1Dim_records.c:260:20: error: no member named '_dTp' in 'struct base_array_s'
+  260 |   dst->_dTp = src->_dTp;
+      |               ~~~  ^
+PathB2_Flow1Dim_records.c:261:22: error: no member named '_ddldp' in 'struct base_array_s'
+  261 |   dst->_ddldp = src->_ddldp;
+      |                 ~~~  ^
+PathB2_Flow1Dim_records.c:262:22: error: no member named '_ddvdp' in 'struct base_array_s'
+  262 |   dst->_ddvdp = src->_ddvdp;
+      |                 ~~~  ^
+fatal error: too many errors emitted, stopping now [-ferror-limit=]
+20 errors generated.
+mingw32-make: *** [<builtin>: PathB2_Flow1Dim_records.o] Error 1
+mingw32-make: Leaving directory 'C:/Users/silam/OneDrive/DOCUME~1/CONDEN~1/modelica'
+RESULT: 2
+[C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/spikes/PathB/run_pathB.mos:36:1-36:50:writable] Error: Variable r2.resultFile not found in scope <global scope>.
+[C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/spikes/PathB/run_pathB.mos:37:1-37:43:writable] Error: Variable r2.messages not found in scope <global scope>.
+
+@@STEP2_BUILDLOG_END
+

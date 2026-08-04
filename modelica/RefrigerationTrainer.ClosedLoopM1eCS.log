@@ -1,0 +1,11 @@
+calc_transport has the value of 1
+TTSE is off
+enable_TTSE has the value of 0
+BICUBIC is off
+enable_BICUBIC has the value of 0
+enable_EXTTP has the value of 1
+twophase_derivsmoothing_xend has the value of 0.0
+rho_smoothing_xend has the value of 0.0
+debug has the value of 0
+LOG_SUCCESS       | info    | The initialization finished successfully without homotopy method.
+LOG_SUCCESS       | info    | The simulation finished successfully.

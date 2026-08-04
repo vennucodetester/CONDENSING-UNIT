@@ -1,0 +1,37 @@
+# MinRepro under OMC 1.27.0 --newBackend, captured 2026-08-02T15:36Z
+#
+# Method: setCommandLineOptions("--newBackend") then buildModel(MinRepro).
+# Compare against the old-backend evidence in MinRepro_02nls.c (this directory).
+
+RESULT
+  old backend: 'st.phase' IS an NLS iteration variable
+               -> 2x '.attribute.nominal' emitted -> C COMPILE FAILS
+  new backend: 'phase' does NOT appear in the generated NLS at all
+               -> 0x '.attribute.nominal'         -> C COMPILES AND LINKS
+
+  So the .nominal-on-Integer codegen defect is OLD-BACKEND ONLY.
+
+CAVEAT - the new-backend executable does NOT run.
+  MinRepro.exe is produced but exits without writing a result file.
+  omc warned it could not locate ExternalMediaLib (see below). That is a
+  SEPARATE new-backend ExternalMedia linkage problem, not the codegen defect.
+  Do not read this as '--newBackend is a workaround'. It is not.
+
+RAW getErrorString() FROM THE BUILD
+----------------------------------
+[C:/Users/silam/AppData/Roaming/.openmodelica/libraries/ExternalMedia 4.1.1/Media/BaseClasses/ExternalTwoPhaseMedium.mo:211:25-233:18:writable] Warning: Could not find library ExternalMediaLib in either of:
+  C:/Users/silam/AppData/Local/OpenModelica1270/lib//omc/ExternalMediaLib.dll
+  /usr/lib//ExternalMediaLib.dll
+  /lib//ExternalMediaLib.dll
+  /usr/lib//ExternalMediaLib.dll
+  /lib//ExternalMediaLib.dll
+  C:/Users/silam/AppData/Local/OpenModelica1270/lib//omc/libExternalMediaLib.a
+  /usr/lib//libExternalMediaLib.a
+  /lib//libExternalMediaLib.a
+  /usr/lib//libExternalMediaLib.a
+  /lib//libExternalMediaLib.a
+  C:/Users/silam/AppData/Local/OpenModelica1270/lib//omc/libExternalMediaLib.lib
+  /usr/lib//libExternalMediaLib.lib
+  /lib//libExternalMediaLib.lib
+  /usr/lib//libExternalMediaLib.lib
+  /lib//libExternalMediaLib.lib
