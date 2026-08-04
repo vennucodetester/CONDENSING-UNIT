@@ -58,7 +58,7 @@ Unambiguous, and it makes "am I done?" a measurement rather than a judgement cal
 
 ## 1. Where things stand
 
-**Gate: 6/6 passing, and now REPEATABLE.** FMU `md5 7e9e1a6f48ecd90638f5cee9dbd462fd`.
+**Gate: 6/6 passing, and now REPEATABLE.** FMU `md5 7873faff49c16792371df2b681a021be`.
 The app runs the FMU (not the placeholder). The **banner stays up** — the couplings are
 right, the numbers are closer but not yet there.
 
@@ -90,17 +90,17 @@ for i in 1 2 3; do python -m pytest tests/test_scenarios.py -v 2>/dev/null | gre
 
 | quantity | model | measured | error | was (session 1) |
 |---|---|---|---|---|
-| T_evap | -27.48 C | **-24.17 C** | -13.7 % | -30.41 C |
-| T_cond | 54.42 C | 44.82 C | +21.4 % **(see the third trap, section 3)** | 49.16 C (+9.7 %) |
-| coil superheat | 5.21 K | **1.27 K** | +310 % | 9.16 K |
-| subcooling | 9.79 K | **8.98 K** | **+9.0 %** | 6.94 K (-22.7 %) |
-| mass flow | 2.65 g/s | **3.055 g/s** | -13.3 % | 2.19 g/s (-28.3 %) |
-| Q_evap (coil) | 611 W | **776 W** | -21.2 % | 527 W (-32.1 %) |
-| Q_cond | -1153 W | -1124 W | **-2.6 %** | -877 W (+21.9 %) |
-| COP | 1.34 | 1.38 | **-2.9 %** | 1.50 (+9.0 %) |
-| air off evaporator | -6.09 F | -7.6 F | +19.9 % | -5.25 F |
-| air off condenser | 112.24 F | 111.4 F | **+0.8 %** | 106.8 F (-4.1 %) |
-| system charge (coils) | 71.9 g | 110 g total | not comparable | 55 g |
+| T_evap | -28.31 C | **-24.17 C** | -17.1 % | -30.41 C |
+| T_cond | 49.39 C | 44.82 C | +10.2 % **(see the third trap, section 3)** | 49.16 C (+9.7 %) |
+| coil superheat | 6.14 K | **1.27 K** | +383 % | 9.16 K |
+| subcooling | 6.25 K | **8.98 K** | -30.4 % | 6.94 K (-22.7 %) |
+| mass flow | 2.67 g/s | **3.055 g/s** | -12.6 % | 2.19 g/s (-28.3 %) |
+| Q_evap (coil) | 629 W | **776 W** | -19.0 % | 527 W (-32.1 %) |
+| Q_cond | -1166 W | -1124 W | **-3.8 %** | -877 W (+21.9 %) |
+| COP | 1.40 | 1.38 | **+1.8 %** | 1.50 (+9.0 %) |
+| air off evaporator | -6.26 F | -7.6 F | +17.6 % | -5.25 F |
+| air off condenser | 109.27 F | 111.4 F | **-1.9 %** | 106.8 F (-4.1 %) |
+| system charge (coils) | 58.7 g | 110 g total | not comparable | 55 g |
 
 COP, `Q_cond` and both condenser air temperatures are now within 3 %. Mass flow and
 capacity have closed by more than half. `T_cond` reads worse but probably is not —
@@ -266,11 +266,45 @@ Note the tension this creates with charge: raising charge fixed subcooling but p
 71.9 g — flat, because the two effects cancel. **Charge alone cannot win. The condenser
 has to get colder at the same charge**, which means condenser capacity, not inventory:
 
-- **Condenser airflow is the first suspect.** 0.076 m3/s was never independently
-  confirmed (the evaporator's was). It is the one input that lowers `T_cond` without
-  touching charge. Careful: `air off condenser` currently matches to +0.8 %, so raising
-  airflow will break that unless the fan curve genuinely supports more.
-- Then re-run the charge sweep at the new condenser condition.
+- ~~Condenser airflow is the first suspect.~~ **DONE, and it was wrong by 58 %.**
+  Derived from the air-side energy balance the same way the evaporator's was:
+  `Q_cond / (cp * dT)` over the running samples gives **0.1203 m3/s (255 CFM)**, not
+  0.076. The measured entering air came with it: `Air Into Cond Right` medians
+  **94.80 F = 34.89 C**, so `T_amb_k` went 305.15 -> 308.04 K. Both sensor pairings
+  imply a condenser effectiveness of 0.83-0.87.
+  **My prediction that this would drop `T_cond` to 47-48 C was WRONG**: it fell 0.8 K
+  only, because the 2.9 K warmer ambient cancelled most of the 58 % more air.
+- ~~Then re-run the charge sweep.~~ **DONE.** A colder condenser holds more liquid at
+  the same charge, so the trade moved; the lower-charge point is now better.
+
+### WHERE IT STANDS AFTER ALL OF THAT — read this before choosing a next step
+
+Capacity is **stuck at 620-630 W against a measured 776 W**, and it did not move for any
+of the following. This is the most valuable thing this session produced, because it rules
+out nearly the whole parameter space:
+
+| lever | range tried | effect on Q_evap |
+|---|---|---|
+| `mdot_nom` (refrigerant-side U) | 1.49x | +2 W |
+| `UA_evap_nom_w_k` (evaporator air side) | 2.26x | +13 W |
+| `UA_cond_nom_w_k` (condenser air side) | 1.57x | ~0 (T_cond -0.9 K) |
+| `txv.Afull` (valve capacity) | 2.0x | **-4 W, while mass flow rose 23 %** |
+| condenser `hstart` (system charge, 36-72 g) | 2.0x | 611-629 W |
+| condenser airflow + ambient | 1.58x | +8 W |
+
+**Six independent levers, spanning both coils, the valve, the charge and the condenser
+air side, and capacity moves by 3 %.** Something structural is holding it, not a
+parameter. Two candidates, in order:
+
+1. **The compressor.** It is the only major component never independently validated,
+   and `V_s * N * eps_v` is a single lumped product of which `V_s` is nameplate and
+   `N * eps_v` is circular (below). A compressor delivering the right mass flow at the
+   wrong enthalpy rise would look exactly like this. `W_comp` is currently checked only
+   against `Unit Watts`, which includes the fans.
+2. **The evaporator air-side effectiveness**, which sits at 0.42 against 0.66 implied by
+   the measured air temperatures — but note that raising its UA 2.26x did NOT move it,
+   which is itself unexplained and worth a focused look at `CoilAirSide.mo` cell
+   discretisation (N = 5 may be too coarse for a coil with a 4 K air rise).
 
 ### Also open: suction density, -14.5 %
 

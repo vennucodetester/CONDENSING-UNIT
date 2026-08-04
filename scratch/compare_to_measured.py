@@ -11,7 +11,7 @@ from fmpy import simulate_fmu
 M = dict(T_evap_c=-24.17, T_cond_c=44.82, superheat_k=1.27, subcooling_k=8.98,
          mdot_g_s=3.055, Q_evap_w=776.0, Q_cond_w=-1123.6, cop=1.38,
          air_out_evap_f=-7.6, air_out_cond_f=111.4)
-SV = dict(evap_airflow_m3_s=0.15, condenser_airflow_m3_s=0.076, txv_opening_frac=0.50,
+SV = dict(evap_airflow_m3_s=0.15, condenser_airflow_m3_s=0.1203, txv_opening_frac=0.50,
           txv_size_frac=1.0, compressor_speed_frac=1.0,
           **{"coil_evap.V_dot_air_m3_s": 0.15, "coil_cond.V_dot_air_m3_s": 0.076})
 K2F = lambda k: (k - 273.15) * 9 / 5 + 32

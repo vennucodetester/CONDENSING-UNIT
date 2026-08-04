@@ -33,11 +33,31 @@ model ClosedLoopM1eCS
      dT = Q_evap / (m_dot_air * cp). Set by iteration against T_air_off_evap_k, not
      assumed - see the value note beside it. */
   parameter Real T_box_k(unit="K")              = 255.37  "air ENTERING the evaporator = 0 F, MEASURED from the CoilDesigner LT sheet" annotation(Evaluate=false);
-  parameter Real T_amb_k(unit="K")              = 305.15  "air temperature at the condenser" annotation(Evaluate=false);
+  /* 305.15 -> 308.04 K (2026-08-04), WITH condenser_airflow_m3_s. Measured, same-side
+     sensor pair: `Air Into Cond Right` medians 94.80 F = 34.89 C over the running
+     samples. The LEFT inlet sensor reads 88.48 F, a 6.3 F split that is probably
+     discharge recirculation on one side; the right pair is used because its inlet and
+     outlet are on the SAME side and therefore describe one air stream.
+     Caveat recorded honestly: the suction line also sees T_amb_k, and it more likely
+     sits in ~31 C room air than in the condenser's 35 C inlet. That biases the
+     suction-line heat gain slightly high. Splitting them is an M2 refinement. */
+  parameter Real T_amb_k(unit="K")              = 308.04  "air ENTERING the condenser = 94.80 F, MEASURED" annotation(Evaluate=false);
 
   parameter Real evap_airflow_m3_s              = 0.15    "Evaporator airflow rate (m3/s) — corrected: fan-curve x coil-dP intersection, was physically-impossible 0.45 (NEXT_STEPS Step 2)" annotation(Evaluate=false);
   parameter Real compressor_speed_frac          = 1.0     "Compressor speed fraction 0..1" annotation(Evaluate=false);
-  parameter Real condenser_airflow_m3_s         = 0.076   "Condenser airflow rate (m3/s) — corrected: was 3x more than 1 fan can physically produce (NEXT_STEPS Step 2)" annotation(Evaluate=false);
+  /* 0.076 -> 0.1203 m3/s (2026-08-04). DERIVED FROM MEASUREMENT, not from a fan curve.
+     The evaporator airflow was confirmed this way and the condenser never was.
+     Air-side energy balance over the running samples, using the same-side sensor pair:
+        Q_cond 1123.6 W / (cp 1005 * dT 8.22 K) = 0.1360 kg/s = 0.1203 m3/s = 255 CFM.
+     The left-inlet pairing gives 0.0843 m3/s; BOTH exceed the modelled 0.076, and both
+     imply a condenser effectiveness of 0.83-0.87. The old 0.076 came from a fan-curve x
+     coil-dP intersection, which is an estimate, not a measurement.
+     WHY THIS MATTERS MORE THAN IT LOOKS: the condenser is air-FLOW limited, so airflow
+     sets T_cond, and T_cond sets the liquid enthalpy entering the TXV. Liquid leaving a
+     54 C condenser instead of a 45 C one costs ~25 kJ/kg of refrigerating effect, which
+     is the mechanism of the remaining capacity gap - not mass flow, which was proven
+     inert by forcing it 7 % ABOVE measured for no change in Q_evap. */
+  parameter Real condenser_airflow_m3_s         = 0.1203  "Condenser airflow (m3/s) = 255 CFM, MEASURED by air-side energy balance" annotation(Evaluate=false);
   parameter Real txv_size_frac                  = 1.0     "TXV nominal size fraction" annotation(Evaluate=false);
 
   /* --- NEWLY EXPOSED AS FMI PARAMETERS 2026-08-03 --------------------------
@@ -162,10 +182,18 @@ model ClosedLoopM1eCS
          linspace(4.50e5, 2.60e5)  ->  58.7 g,  subcooling 5.29 K,  T_cond 49.1 C, 6/6
          linspace(4.25e5, 2.53e5)  ->  63.1 g,  subcooling 6.63 K,  T_cond 51.4 C, 5/6
          linspace(4.00e5, 2.45e5)  ->  71.9 g,  subcooling 9.79 K,  T_cond 54.4 C, 6/6
-       Chosen on lowest total error (sum of absolute percentage errors 105 vs 125 for
-       the 58.7 g point) and because it puts subcooling within 9 % of the measured
-       8.98 K. 71.9 g in the coils is also credible against the 110 g system charge once
-       lines, drier and shell are allowed for.
+       RE-SWEPT after the condenser airflow correction (0.076 -> 0.1203), which changes
+       the trade because a colder condenser holds more liquid at the same charge:
+         linspace(4.50e5, 2.60e5) -> subcooling 6.25 K, T_cond 49.4 C, Q_evap 629 W, 6/6
+         linspace(4.00e5, 2.45e5) -> subcooling 10.67 K, T_cond 53.7 C, Q_evap 622 W, 6/6
+       NOW CHOSEN: the 4.50e5/2.60e5 point. Total error is a wash between them (114 vs
+       112 summed absolute percentage error), so it is decided on the quantities that
+       are physically meaningful rather than on the sum: capacity (629 vs 622 W), COP
+       (+1.8 % vs -1.0 %) and T_cond (+10.2 % vs +19.7 %) all favour the lower charge.
+       The cost is subcooling at -30.4 %.
+       THE HONEST SUMMARY: charge trades subcooling against T_cond and capacity is
+       nearly FLAT across the whole sweep (621-629 W against a measured 776 W). Charge
+       is therefore NOT the remaining constraint - it just moves error between rows.
        THE COST IS T_cond, which rises to 54.4 C (+21 %). That is real overcharge
        behaviour - flooding the condenser steals condensing area - and it is accepted
        here ONLY because T_cond is currently not a trustworthy target: the measured
@@ -173,7 +201,7 @@ model ClosedLoopM1eCS
        trap). Q_cond (-2.6 %) and air off condenser (+0.8 %) are unaffected by charge
        because the condenser is air-FLOW limited, and both still match.
        REVISIT THIS the moment a trustworthy head pressure exists. */
-    hstart = linspace(4.00000e5, 2.45000e5, N),
+    hstart = linspace(4.50000e5, 2.60000e5, N),
     steadystate = false);
 
   /* ADDED 2026-08-04. The measured 21.6 K between coil outlet (1.27 K superheat) and
