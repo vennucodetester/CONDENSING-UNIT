@@ -61,7 +61,20 @@ model ClosedLoopM1eCS
 
   /* ---------------- geometry ---------------- */
   parameter Integer N = 5 "cells per heat exchanger";
-  parameter Modelica.Units.SI.Pressure p_evap_start = 4.85e5;
+  /* 4.85e5 -> 2.099e5 (2026-08-04). THE STARTUP TRANSIENT WAS THE STIFFNESS.
+     4.85 bar is Tsat = +0.72 C, but the loop settles near -28 C (1.65-1.9 bar): the
+     evaporator was being started 30 K too warm at 2.5x its own settled pressure, and
+     the resulting collapse is what the solver was failing to integrate. The
+     evaporator's torn nonlinear system (equations 1266-1312 in
+     RefrigerationTrainer.ClosedLoopM1eCS_02nls.c) fails at t ~ 4.5 s, and whether it
+     RECOVERS was found to depend on the process, not on the model -- see
+     docs/NONDETERMINISM.md. p_cond_start needed no change: 1.52e6 is Tsat 44.58 C
+     against the measured 44.82 C.
+     2.099e5 = Psat at the measured T_evap of -24.17 C (docs/MEASURED_REFERENCE.md).
+     An initial condition does NOT set an equilibrium, so this must not move the
+     settled answer; it only stops the model being thrown across the phase envelope
+     in the first five seconds. */
+  parameter Modelica.Units.SI.Pressure p_evap_start = 2.099e5;
   parameter Modelica.Units.SI.Pressure p_cond_start = 1.52e6;
   /* 0.031 -> 0.0035 kg/s (2026-08-03). THE BINDING CONSTRAINT, found by working back
      from an effective condenser UA of 29 W/K when UA_air_nom was set to 575.
@@ -86,7 +99,12 @@ model ClosedLoopM1eCS
      parameter set; retrying at the correct value now the rest is calibrated.
      PREDICTION: U up ~2.6x -> T_evap -28.6 -> warmer toward -24.2 C, Q_evap 453 -> 700+ W,
      PR falls, eps_v rises, mdot rises toward 3 g/s. Risk: stiffness (CVode mxstep). */
-  parameter Modelica.Units.SI.MassFlowRate mdot_nom = 0.00306;
+  /* RESULT 2026-08-04: 0.00306 DESTABILISED the solver exactly as predicted --
+     CVode mxstep at t = 7.49 s, all 6 gate tests fail. Same failure as the earlier
+     0.0035 attempt, so it is NOT an artifact of the old parameter set: the model
+     genuinely will not integrate with the coil coefficients this high.
+     Stepping down to find the boundary. 0.010 is known stable, 0.00306 is not. */
+  parameter Modelica.Units.SI.MassFlowRate mdot_nom = 0.006;
 
   /* ---------------- components ---------------- */
   CompressorEM comp(
@@ -105,7 +123,11 @@ model ClosedLoopM1eCS
        pre-sign-fix coil). */
     epsilon_s = 0.72, V_s = V_s_cm3*1e-6,
     p_su_start = p_evap_start, p_ex_start = p_cond_start,
-    T_su_start = 283.15);
+    /* 283.15 -> 271.86 (2026-08-04), with p_evap_start. 271.86 K = the MEASURED
+       compressor-inlet state: -24.17 C saturated plus the 22.88 K suction superheat.
+       The 22.88 K figure is the right one HERE (unlike at the coil outlet) because
+       this is the compressor inlet, which is where that superheat was measured. */
+    T_su_start = 271.86);
 
   Flow1DimCS cond(
     redeclare package Medium = Med,
@@ -165,9 +187,16 @@ model ClosedLoopM1eCS
        CONDENSER, whose V/A remain ASSUMED (no condenser sheet exists). */
     Unom_l = 500, Unom_tp = 1500, Unom_v = 200,
     pstart = p_evap_start,
-    Tstart_inlet = 268.15, Tstart_outlet = 274.15,
+    /* Moved with p_evap_start, 2026-08-04. These must describe the SAME state as the
+       pressure or the profile is inconsistent on the first step: 248.99 K = Tsat at
+       2.099 bar, 250.25 K = the measured 1.27 K coil-outlet superheat (NOT the 22.88 K
+       compressor-inlet figure - that includes suction-line gain the model omits). */
+    Tstart_inlet = 248.99, Tstart_outlet = 250.25,
     Discretization = ThermoCycle.Functions.Enumerations.Discretizations.upwind,
-    hstart = linspace(2.90000e5, 5.87903e5, N),
+    /* h_in = liquid at the measured 8.98 K subcooling (35.84 C, 15.28 bar); h_out =
+       vapour at 2.099 bar and 1.27 K superheat. The old pair was consistent with the
+       old 4.85 bar start, not with the machine. */
+    hstart = linspace(2.95116e5, 5.49227e5, N),
     steadystate = false);
 
   /* Air-side heat transfer models with airflow dependence (replaces WallTemperatureSource stand-in) */
@@ -279,7 +308,20 @@ model ClosedLoopM1eCS
   output Real superheat_circuit_k_2(unit="K");
   output Real superheat_mixed_k(unit="K");
   output Boolean txv_saturated;
-  parameter Real superheat_target_k             = 7.0     "TXV superheat setpoint [K]" annotation(Evaluate=false);
+  /* 7.0 -> 1.27 (2026-08-04). 7.0 K was a generic TXV setting, not this valve.
+     EVIDENCE THAT THE COIL, NOT THE VALVE, WAS THE WRONG SUSPECT: dropping mdot_nom
+     0.010 -> 0.006 raises every coil coefficient by (10/6)^0.8 = 1.49x, and moved
+     Q_evap by 2 W (527 -> 529). The evaporator is therefore NOT refrigerant-side
+     limited, so the UA steps queued in HANDOFF.md cannot be the binding constraint
+     either. What is left is the valve: superheat is the largest single error in
+     scratch/compare_to_measured.py at +710 %, and a coil held at 10.3 K superheat is
+     a STARVED coil, which caps mass flow and hence capacity.
+     1.27 K is the measured coil-outlet superheat (docs/MEASURED_REFERENCE.md) - the
+     real machine runs nearly FLOODED. Deliberately NOT the 22.88 K compressor-inlet
+     figure: that includes ~105 W of suction-line gain the model does not represent.
+     NB the proportional law leaves a steady-state offset (Kp = 0.05/K), so settled
+     superheat will land ABOVE 1.27 K; the target is not the prediction. */
+  parameter Real superheat_target_k             = 1.27    "TXV superheat setpoint [K] - MEASURED coil-outlet value" annotation(Evaluate=false);
 
 initial equation
   txv_opening_cmd = txv_opening_frac;
@@ -299,6 +341,26 @@ equation
   connect(drive.flange, comp.flange_elc);
 
   /* Proportional TXV Control Law with bulb time constant & stroke limits: A = clamp(A_ref + Kp*(SH - SH_target), A_min, A_max) */
+  /* Kp STAYS AT 0.05 per K. TRIED AND REVERTED 2026-08-04: 0.20, then 0.10.
+     The physics prediction was right and the gate still rejected it.
+       Kp 0.20 -> superheat 7.18 -> 3.35 K, mdot 2.58 -> 2.85 g/s (-6.8 % of measured),
+       Q_evap 631 W. Every headline error improved. But 4/6, repeatably:
+         - test_more_mass_flow_raises_discharge_pressure: opening the valve LOWERED
+           mass flow (2.899 vs 2.990 g/s). The closed-loop sensitivity is
+           d(opening)/d(frac) = 1 + Kp*dSH/dfrac, and at Kp = 0.20 the feedback term
+           cancels the operator's own command. The valve stops being a control.
+         - test_energy_balance_closes: open by 2.0 % (states imply 644 W, model
+           reports 631 W), as the coil outlet approaches saturation.
+       Kp 0.10 -> superheat 5.08 K, mdot 2.77 g/s. SAME TWO FAILURES. So the limit
+       sits between 0.05 and 0.10, and it is not a solver artifact: as the coil
+       approaches flooded, a TXV genuinely loses authority over mass flow.
+     THE REAL OBSTACLE IS STRUCTURAL, NOT THIS GAIN. The machine runs 1.27 K at the
+     coil outlet AND 22.88 K at the compressor inlet; the difference is ~105 W of
+     suction-line heat gain (HANDOFF.md section 6.1) that this model does not
+     represent. With no suction line, ONE superheat has to serve both roles, so
+     driving the coil to 1.27 K also feeds the compressor near-saturated vapour --
+     which is not what the real compressor sees. Raising Kp cannot fix that; adding
+     the suction line can. Do not re-tune this gain until it exists. */
   tau_txv * der(txv_opening_cmd) + txv_opening_cmd = max(0.05, min(1.0, txv_opening_frac + 0.05 * (superheat_k - superheat_target_k)));
   txv_saturated   = (txv_opening_cmd >= 0.999) or (txv_opening_cmd <= 0.051);
 

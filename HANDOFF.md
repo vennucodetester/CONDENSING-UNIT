@@ -1,4 +1,4 @@
-# HANDOFF — refrigeration trainer, state as of 2026-08-04
+# HANDOFF — refrigeration trainer, state as of 2026-08-04 (session 2)
 
 **Self-contained. You should not need the conversation this came from.**
 
@@ -58,9 +58,9 @@ Unambiguous, and it makes "am I done?" a measurement rather than a judgement cal
 
 ## 1. Where things stand
 
-**Gate: 6/6 passing.** FMU `md5 81fa10a087e6ff7ec36aadb3aaef41ee`.
+**Gate: 6/6 passing, and now REPEATABLE.** FMU `md5 7105f34e1354ca6246c76f2c586ad783`.
 The app runs the FMU (not the placeholder). The **banner stays up** — the couplings are
-right, the numbers are not yet.
+right, the numbers are closer but not yet there.
 
 ```
 ./gate.sh          # THE ONLY supported way to produce a gate result
@@ -71,52 +71,98 @@ It rebuilds, proves the artifact's md5 actually changed, installs to
 editing a `.mo` file — a staleness guard in `tests/test_scenarios.py` will hard-fail,
 because a stale FMU produced **five** false "6/6 PASSED" reports in this project.
 
+### READ `docs/NONDETERMINISM.md` BEFORE TRUSTING ANY GATE RESULT
+
+The gate used to return **4/6, 0/6, 6/6, 0/6 on a byte-identical FMU**. Every pass/fail
+count in this repo written before 2026-08-04 — including the old "6/6" baseline above —
+was one sample of a random variable. Cause and fix are in that file. Since the fix, the
+gate has returned 6/6 in eight consecutive separate processes.
+
+**Standing rule: one green gate is not evidence. Repeat it.**
+
+```bash
+for i in 1 2 3; do python -m pytest tests/test_scenarios.py -v 2>/dev/null | grep -cE " PASSED"; done
+```
+
 ### Model vs measured, right now
 
 `python scratch/compare_to_measured.py`
 
-| quantity | model | measured | error |
-|---|---|---|---|
-| T_evap | -30.41 C | **-24.17 C** | too cold |
-| T_cond | 49.16 C | **44.82 C** | +9.7 % |
-| coil superheat | 9.16 K | **1.27 K** | far too high |
-| subcooling | 6.94 K | **8.98 K** | -22.7 % |
-| mass flow | 2.19 g/s | **3.055 g/s** | -28.3 % |
-| Q_evap (coil) | 527 W | **776 W** | -32.1 % |
-| Q_cond | -877 W | -1124 W | +21.9 % |
-| COP | 1.50 | 1.38 | +9.0 % |
-| air off evaporator | -5.25 F | -7.6 F | |
-| air off condenser | 106.8 F | 111.4 F | -4.1 % |
+| quantity | model | measured | error | was (session 1) |
+|---|---|---|---|---|
+| T_evap | -28.75 C | **-24.17 C** | -18.9 % | -30.41 C |
+| T_cond | 44.79 C | **44.82 C** | **-0.1 %** | 49.16 C (+9.7 %) |
+| coil superheat | 7.18 K | **1.27 K** | +465 % | 9.16 K |
+| subcooling | 0.00 K | **8.98 K** | **-100 %** | 6.94 K |
+| mass flow | 2.58 g/s | **3.055 g/s** | -15.7 % | 2.19 g/s (-28.3 %) |
+| Q_evap (coil) | 591 W | **776 W** | -23.8 % | 527 W (-32.1 %) |
+| Q_cond | -970 W | -1124 W | +13.7 % | -877 W |
+| COP | 1.56 | 1.38 | +13.2 % | 1.50 |
+| air off evaporator | -5.89 F | -7.6 F | | -5.25 F |
+| air off condenser | 108.65 F | 111.4 F | -2.5 % | 106.8 F |
 
-**The core gap is mass flow and capacity, ~30 % low**, and it is self-reinforcing:
-too little flow -> evaporator too cold -> higher PR -> lower eps_v -> less flow.
+The condenser is now essentially exact. Mass flow and capacity improved by about half
+their former error. **Two errors are now dominant: superheat (+465 %) and subcooling
+(-100 %), and neither is a tuning problem — see section 2.**
 
 ---
 
-## 2. THE NEXT STEP (was interrupted mid-edit — nothing was written)
+## 2. THE NEXT STEP — add the suction line. It is now the binding constraint.
 
-**Set `mdot_nom` in `modelica/RefrigerationTrainer/ClosedLoopM1eCS.mo` from `0.010` to
-`0.00306` kg/s.**
+Not a tuning step. A structural one, and **it needs your go-ahead because it changes the
+model's physics rather than its numbers.**
 
-Why this is the highest-leverage change: ThermoCycle's `Cell1Dim` scales *every* coil
-heat-transfer coefficient as
+### Why the queued tuning steps are the wrong target
 
-```
-U = Unom * (M_dot / Mdotnom)^0.8
-```
+The old plan said: `mdot_nom`, then `UA_evap_nom_w_k`, then `UA_cond_nom_w_k`.
+That plan is now disproven at its first step.
 
-`Mdotnom = 0.010` against an actual ~2.2 g/s cuts **both** coils to ~26 % of nominal.
-The measured design flow is **3.055 g/s**, so `mdot_nom = 0.00306`.
+Dropping `mdot_nom` 0.010 -> 0.006 raises every coil coefficient by
+`(10/6)^0.8 = 1.49x`, and **moved `Q_evap` by 2 W** (527 -> 529). So the evaporator is
+**not refrigerant-side limited**, and the two UA steps behind it cannot be binding
+either. Do not spend gates on them.
 
-**Prediction to state before running:** U rises ~2.6x, T_evap warms from -30.4 toward
--24.2 C, Q_evap 527 -> 700+ W, PR falls, eps_v rises, mdot rises toward 3 g/s.
+### What is actually blocking
 
-**Known risk:** an earlier attempt at `0.0035` destabilised the solver (CVode `mxstep`
-at t=6.95 s) on the *old* parameter set. `0.010` was an interim step. If it stalls again,
-step down gradually (0.006 -> 0.004 -> 0.00306) and find where it breaks.
+The machine runs **1.27 K superheat at the coil outlet** and **22.88 K at the compressor
+inlet**. The difference is ~105 W of suction-line heat gain (section 6.1). The model has
+no suction line, so **one superheat value has to serve both roles**, and the two roles
+want opposite things:
 
-After that, in order: evaporator `UA_evap_nom_w_k`, then condenser `UA_cond_nom_w_k`.
-One change per gate, prediction stated first.
+- to match the coil, it must run near-flooded (1.27 K);
+- to match the compressor, the gas entering it must be well superheated (22.88 K).
+
+This was tested, not assumed. Raising the TXV gain `Kp` drives coil superheat down and
+every headline error improves — and the gate rejects it, repeatably:
+
+| Kp | superheat | mdot | gate |
+|---|---|---|---|
+| 0.05 (current) | 7.18 K | 2.58 g/s | **6/6** |
+| 0.10 | 5.08 K | 2.77 g/s | 4/6 |
+| 0.20 | 3.35 K | 2.85 g/s (-6.8 %) | 4/6 |
+
+Both failures are physical, not artifacts:
+
+1. **Opening the valve stops raising mass flow** (2.899 vs 2.990 g/s). Closed-loop
+   sensitivity is `d(opening)/d(frac) = 1 + Kp*dSH/dfrac`; at high `Kp` the feedback
+   cancels the operator's own command. A flooded coil's TXV genuinely loses authority.
+2. **Energy balance opens to 2.0 %** as the coil outlet approaches saturation.
+
+So `Kp` was left at 0.05. `superheat_target_k` **was** corrected 7.0 -> 1.27 K (the
+measured value) and kept — that change alone is worth -26.7 % -> -15.7 % on mass flow.
+
+**Subcooling = 0.00 K points the same way**: with no suction line and no receiver, the
+charge has nowhere to sit but the coils, so the condenser runs dry of liquid. Charge
+inventory (M3, section 6.3) and the suction line are the same problem seen twice.
+
+### The recommendation
+
+Add a suction-line component between `evap.OutFlow` and `comp.InFlow` carrying ~105 W
+of ambient heat gain, then re-run the `Kp` sweep above. The prediction to state and
+score: the coil can then hold ~1.3 K while the compressor sees ~23 K, `Kp` 0.10-0.20
+becomes admissible, and mass flow closes the last ~7 %.
+
+**This is a physics change, so it is yours to approve, not mine to make.**
 
 ---
 
@@ -171,6 +217,10 @@ against it.** Use `Unit Watts` (685 W, minus ~50 W condenser fan) instead.
 | Redundant `Cells.p` states cause the index-reduction errors | **WRONG** — alias elimination already collapses them; one pressure state per exchanger. |
 | Mass-flow sign / start values cause the init failure | **WRONG** — tested, bit-identical across four start configurations. |
 | `M_charge_kg` (55 g) vs the 110 g system charge is a discrepancy | **NOT COMPARABLE** — coils only. No lines, drier, shell or oil in the model. |
+| The evaporator is refrigerant-side limited, so coil UA / `mdot_nom` are the lever | **WRONG (2026-08-04)** — a 1.49x rise in every coil coefficient moved `Q_evap` by **2 W**. Killed the whole queued UA plan. |
+| The gate's pass count is a property of the model | **WRONG (2026-08-04)** — it varied 0/6 to 6/6 on a byte-identical FMU. See `docs/NONDETERMINISM.md`. |
+| Coil superheat can be brought to the measured 1.27 K by raising the TXV gain | **WRONG (2026-08-04)** — it works numerically and breaks valve authority and the energy balance. Blocked on the suction line, section 2. |
+| The `mxstep` stalls were solver stiffness needing gentler parameter steps | **PARTLY WRONG** — the dominant cause was `p_evap_start` being 30 K too warm, i.e. a startup transient. Fixing the initial condition cured both the stalls at 0.006 and the nondeterminism. |
 
 ---
 
@@ -185,9 +235,24 @@ against it.** Use `Unit Watts` (685 W, minus ~50 W condenser fan) instead.
 | `T_box_k` | 255.37 K (0 F) | CoilDesigner LT sheet |
 | evaporator airflow | 0.15 m3/s (318 CFM) | fan curve x coil dP; **confirmed by measurement** |
 | condenser airflow | 0.076 m3/s (161 CFM) | fan curve x coil dP |
-| `UA_evap_nom_w_k` | 132.8 | CoilDesigner mean-temperature method — **still soft** |
-| `UA_cond_nom_w_k` | 575.0 | fitted to a 12.95 K approach — **still soft** |
-| `mdot_nom` | 0.010 | **WRONG, see section 2** |
+| `UA_evap_nom_w_k` | 132.8 | CoilDesigner mean-temperature method — soft, but **proven not to be the constraint** |
+| `UA_cond_nom_w_k` | 575.0 | fitted to a 12.95 K approach — soft; condenser now matches to 0.1 %, so leave it |
+| `mdot_nom` | **0.006** | 0.00306 is the measured flow and is CORRECT in principle, but the model will not integrate there — see below |
+| `p_evap_start` | **2.099e5** | Psat at the measured -24.17 C. Was 4.85e5 (= +0.72 C) — the startup-transient bug behind the flaky gate |
+| `evap.Tstart_inlet/outlet` | **248.99 / 250.25 K** | same measured state, kept consistent with `p_evap_start` |
+| `evap.hstart` | **2.95116e5 -> 5.49227e5** | liquid at 8.98 K subcooling -> vapour at 1.27 K superheat |
+| `comp.T_su_start` | **271.86 K** | measured compressor inlet (-24.17 C + 22.88 K) |
+| `superheat_target_k` | **1.27** | measured coil-outlet superheat. Was a generic 7.0 |
+| TXV `Kp` | 0.05 | 0.10 and 0.20 both tried and reverted — section 2 |
+
+### Why `mdot_nom` is 0.006 and not the measured 0.00306
+
+`0.00306` and `0.004` both fail to integrate (CVode `mxstep` at t≈7.4 s), *even after*
+the initial-condition fix. Lowering `mdot_nom` raises every coil coefficient, which
+stiffens the evaporator's torn nonlinear block (equations 1266-1312). `0.006` is the
+lowest value that gates cleanly. Since dropping 0.010 -> 0.006 changed `Q_evap` by 2 W,
+**pushing further down this parameter is not worth another gate** — it is not where the
+remaining error lives.
 
 ---
 
@@ -226,5 +291,8 @@ against it.** Use `Unit Watts` (685 W, minus ~50 W condenser fan) instead.
   remaining data blockers, both for charge (M3).
 - **The 8 s solve** blocks the UI. Batched inputs + explicit Calculate defuses it, but a
   background thread would keep the window responsive.
-- `_paint_field_v1` and `_paint_legacy` in `app.py` are **dead paint methods** carrying
-  stale copies of the schematic. They caused a wasted edit. Worth deleting.
+- ~~`_paint_field_v1` and `_paint_legacy` in `app.py` are dead paint methods.~~
+  **DONE 2026-08-04** — both deleted, 408 lines removed (2059 -> 1651). Neither name was
+  referenced anywhere but its own `def`. `paintEvent` is the live one. The other 16 tests
+  (including `test_ui_workflow`) still pass.
+- **The suction line — section 2. This is the next real step and it needs your decision.**
