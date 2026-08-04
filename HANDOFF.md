@@ -58,7 +58,7 @@ Unambiguous, and it makes "am I done?" a measurement rather than a judgement cal
 
 ## 1. Where things stand
 
-**Gate: 6/6 passing, and now REPEATABLE.** FMU `md5 f84c205dadc19124a29cd3ecf89160ae`.
+**Gate: 6/6 passing, and now REPEATABLE.** FMU `md5 fd97454b797c9706103fff2c1ea1db3c`.
 The app runs the FMU (not the placeholder). The **banner stays up** — the couplings are
 right, the numbers are closer but not yet there.
 
@@ -90,24 +90,30 @@ for i in 1 2 3; do python -m pytest tests/test_scenarios.py -v 2>/dev/null | gre
 
 | quantity | model | measured | error | was (session 1) |
 |---|---|---|---|---|
-| T_evap | -28.19 C | **-24.17 C** | -16.6 % | -30.41 C |
-| T_cond | 50.07 C | 44.82 C | +11.7 % **(see the third trap, section 3)** | 49.16 C (+9.7 %) |
-| coil superheat | 6.12 K | **1.27 K** | +382 % | 9.16 K |
-| subcooling | 5.29 K | **8.98 K** | -41.1 % | 6.94 K |
-| mass flow | 2.68 g/s | **3.055 g/s** | -12.3 % | 2.19 g/s (-28.3 %) |
-| Q_evap (coil) | 618 W | **776 W** | -20.3 % | 527 W (-32.1 %) |
-| Q_cond | -1152 W | -1124 W | **-2.6 %** | -877 W (+21.9 %) |
-| COP | 1.38 | 1.38 | **-0.3 %** | 1.50 (+9.0 %) |
-| air off evaporator | -6.16 F | -7.6 F | +19.0 % | -5.25 F |
-| air off condenser | 112.23 F | 111.4 F | **+0.7 %** | 106.8 F (-4.1 %) |
+| T_evap | -27.48 C | **-24.17 C** | -13.7 % | -30.41 C |
+| T_cond | 54.42 C | 44.82 C | +21.4 % **(see the third trap, section 3)** | 49.16 C (+9.7 %) |
+| coil superheat | 5.21 K | **1.27 K** | +310 % | 9.16 K |
+| subcooling | 9.79 K | **8.98 K** | **+9.0 %** | 6.94 K (-22.7 %) |
+| mass flow | 2.65 g/s | **3.055 g/s** | -13.3 % | 2.19 g/s (-28.3 %) |
+| Q_evap (coil) | 611 W | **776 W** | -21.2 % | 527 W (-32.1 %) |
+| Q_cond | -1153 W | -1124 W | **-2.6 %** | -877 W (+21.9 %) |
+| COP | 1.34 | 1.38 | **-2.9 %** | 1.50 (+9.0 %) |
+| air off evaporator | -6.09 F | -7.6 F | +19.9 % | -5.25 F |
+| air off condenser | 112.24 F | 111.4 F | **+0.8 %** | 106.8 F (-4.1 %) |
+| system charge (coils) | 71.9 g | 110 g total | not comparable | 55 g |
 
 COP, `Q_cond` and both condenser air temperatures are now within 3 %. Mass flow and
 capacity have closed by more than half. `T_cond` reads worse but probably is not —
 section 3, third trap.
 
-**What is left is one number: mass flow, -12.3 %.** `Q_evap = M_dot * dh`, so the
-capacity error is mostly the flow error, and the rest is the missing subcooling
-(8.98 K measured vs 5.29 K, worth ~10 kJ/kg of refrigerating effect).
+**What is left is one number: mass flow, -13.3 %.** `Q_evap = M_dot * dh`, and dh is now
+right (subcooling matches), so the capacity error is now essentially the flow error.
+
+Mass flow decomposes as `M_dot = rho_suction * V_s * N * eps_v`. `V_s` is nameplate,
+`N * eps_v` is pinned by the measurement (see the circularity warning in section 5), and
+the whole remaining deficit is **suction density: 3.67 kg/m3 modelled against 4.293
+measured, -14.5 %**, because the evaporator settles 3.3 K too cold. That is the one
+number to attack next.
 
 ---
 
@@ -194,15 +200,47 @@ matches to 0.7 %.
    ~19 g of charge (evaporator vapour is 2.3x less dense at 2.099 bar than at 4.85), and
    that — not the missing receiver — is why subcooling had collapsed to zero.
 
-**The next step is mass flow, the last -12.3 %.** In order of expected value:
+3. **Charge was raised to match subcooling.** The condenser `hstart` profile is the only
+   charge control in the model (no receiver, no liquid line). Swept and recorded in the
+   comment beside it: 36.4 g / 0.00 K, 58.7 g / 5.29 K, 63.1 g / 6.63 K (**5/6**),
+   71.9 g / 9.79 K. Chose 71.9 g — lowest total error, subcooling within 9 %.
 
-- **Verify the shaft speed.** 3500 rpm is the family rating, not this nameplate. If the
-  real figure is 3450 or 3600 the flow error moves by 3 %. Cheap, and it is currently
-  the least-evidenced number in the model.
-- **More charge.** Subcooling is still -41 %, worth ~10 kJ/kg of refrigerating effect.
-  Continue raising initial charge and watch that `T_cond` does not run away.
-- **Resolve the condenser approach contradiction (section 3).** Until then `T_cond` is
-  not a valid calibration target.
+### A CIRCULARITY YOU MUST NOT WALK INTO
+
+`k_v = 0.0380` was fitted so that `eps_v = 0.95 - k_v*(PR-1)` gives **0.7116** at the
+measured PR of 7.28. But that 0.7116 was itself computed from the measured mass flow
+**assuming a 50 rev/s shaft**. So:
+
+```
+M_dot = rho_suction * V_s * (N * eps_v)
+```
+
+and the data pins only the **product** `N * eps_v = 35.6 rev/s`. Deriving "shaft speed"
+from the data returns exactly 3000 rpm because that is what was fed in. **It is not
+independent evidence, and it must not be cited as confirmation of the speed.**
+
+The 60 Hz correction rests on the supply voltage (122.9 V), which *is* independent. If
+the true speed is 3500 rpm then `eps_v` at PR 7.28 is 0.610, not 0.7116, and `k_v`
+should be ~0.054. Both were left alone because the model's own PR (9.53) already puts
+`eps_v` at 0.626, close to that figure. **To separate them you need one measurement:
+actual shaft rpm, or a compressor calibration point at a known PR.**
+
+### The next step: suction density, the last -13.3 %
+
+Everything else is within ~3 % or is a suspect measurement. The flow deficit is entirely
+suction density (3.67 vs 4.293 kg/m3), i.e. the evaporator settling at -27.5 C instead
+of -24.2 C. In order of expected value:
+
+- **Do NOT reach for coil UA.** Three conductances, all inert. It is not a heat-transfer
+  problem.
+- **Measure the shaft rpm** and break the circularity above. It is the least-evidenced
+  number in the model.
+- **Resolve the condenser approach contradiction (section 3)** — a trustworthy head
+  pressure would re-open `T_cond` as a target and let the charge choice be revisited.
+- ~~Check `T_box_k` against the data.~~ **DONE, it is correct.** Over 8,623 running
+  samples, `Air Into Evap Left` medians **+0.77 F** and `Air Into Evap Right`
+  **-1.86 F**, straddling the model's 0.00 F. `Air Out of Evap Right` medians -7.90 F,
+  consistent with the -7.6 F reference. The entering air is not the problem.
 
 ---
 
@@ -291,6 +329,7 @@ against it.** Use `Unit Watts` (685 W, minus ~50 W condenser fan) instead.
 | Adding the suction line will make TXV gain 0.10-0.20 admissible | **WRONG (2026-08-04)** — my own prediction, scored and failed. Both gains still break valve authority and the energy balance with the suction line present. The suction line was still correct on its own merits (COP +13.2 % -> -0.3 %). |
 | Subcooling collapsed to 0 K because the model has no receiver or liquid line | **WRONG (2026-08-04)** — it collapsed because the `p_evap_start` fix removed ~19 g of charge. Restoring charge through the condenser start profile brought it back to 5.29 K. |
 | Some coil conductance is the binding constraint on capacity | **WRONG (2026-08-04)** — all three were tried and none moved anything. See section 2. |
+| `T_box_k` (0 F) might not match the box air in the measured windows | **WRONG (2026-08-04)** — measured medians are +0.77 F and -1.86 F on the two evaporator inlet sensors. 0 F is right. |
 | The measured `T_cond` of 44.82 C is a valid calibration target | **DOUBTFUL (2026-08-04)** — it implies a 0.71 K condenser approach, which is impossible. Section 3, third trap. |
 
 ---

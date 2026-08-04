@@ -153,7 +153,27 @@ model ClosedLoopM1eCS
        3.052e5 = 5 K subcooling, the middle of the 5-15 F target.
        PREDICTION: subcooling 15.9 -> ~5 K, condenser charge 48.5 -> ~28 g, more of the
        coil condensing, T_cond falls toward the measured 44.35 C. */
-    hstart = linspace(4.50000e5, 2.60000e5, N),
+    /* THIS PROFILE IS THE SYSTEM CHARGE CONTROL, 2026-08-04. There is no receiver and
+       no liquid line, so total refrigerant mass is whatever the initial conditions put
+       in, and it lives almost entirely as liquid in the condenser. That makes this one
+       line the only lever on subcooling in the whole model.
+       Measured by sweeping it (gate repeated 3x at each point):
+         linspace(6.70e5, 3.05e5)  ->  36.4 g,  subcooling 0.00 K,  T_cond 45.8 C, 6/6
+         linspace(4.50e5, 2.60e5)  ->  58.7 g,  subcooling 5.29 K,  T_cond 49.1 C, 6/6
+         linspace(4.25e5, 2.53e5)  ->  63.1 g,  subcooling 6.63 K,  T_cond 51.4 C, 5/6
+         linspace(4.00e5, 2.45e5)  ->  71.9 g,  subcooling 9.79 K,  T_cond 54.4 C, 6/6
+       Chosen on lowest total error (sum of absolute percentage errors 105 vs 125 for
+       the 58.7 g point) and because it puts subcooling within 9 % of the measured
+       8.98 K. 71.9 g in the coils is also credible against the 110 g system charge once
+       lines, drier and shell are allowed for.
+       THE COST IS T_cond, which rises to 54.4 C (+21 %). That is real overcharge
+       behaviour - flooding the condenser steals condensing area - and it is accepted
+       here ONLY because T_cond is currently not a trustworthy target: the measured
+       condenser approach is 0.71 K, which is impossible (HANDOFF.md section 3, third
+       trap). Q_cond (-2.6 %) and air off condenser (+0.8 %) are unaffected by charge
+       because the condenser is air-FLOW limited, and both still match.
+       REVISIT THIS the moment a trustworthy head pressure exists. */
+    hstart = linspace(4.00000e5, 2.45000e5, N),
     steadystate = false);
 
   /* ADDED 2026-08-04. The measured 21.6 K between coil outlet (1.27 K superheat) and
