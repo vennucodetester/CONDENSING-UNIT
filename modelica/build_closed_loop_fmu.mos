@@ -13,6 +13,7 @@ loadFile("RefrigerationTrainer/package.mo");
 loadFile("RefrigerationTrainer/Flow1DimCS.mo");
 loadFile("RefrigerationTrainer/WallTemperatureSource.mo");
 loadFile("RefrigerationTrainer/CompressorEM.mo");
+loadFile("RefrigerationTrainer/SuctionLine.mo");
 loadFile("RefrigerationTrainer/ClosedLoopM1eCS.mo");
 junk := getErrorString();
 

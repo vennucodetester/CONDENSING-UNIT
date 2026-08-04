@@ -153,8 +153,17 @@ model ClosedLoopM1eCS
        3.052e5 = 5 K subcooling, the middle of the 5-15 F target.
        PREDICTION: subcooling 15.9 -> ~5 K, condenser charge 48.5 -> ~28 g, more of the
        coil condensing, T_cond falls toward the measured 44.35 C. */
-    hstart = linspace(6.70012e5, 3.05200e5, N),
+    hstart = linspace(4.50000e5, 2.60000e5, N),
     steadystate = false);
+
+  /* ADDED 2026-08-04. The measured 21.6 K between coil outlet (1.27 K superheat) and
+     compressor inlet (22.88 K) is ambient heat leaking into the cold suction line,
+     ~105 W. Its absence was the binding constraint on this model: one superheat cannot
+     be both nearly-flooded for the coil and dry for the compressor. */
+  SuctionLine suction(
+    redeclare package Medium = Med,
+    T_amb_k = T_amb_k,
+    h_start = 5.49227e5);
 
   ThermoCycle.Components.Units.PdropAndValves.Valve txv(
     redeclare package Medium = Med,
@@ -261,8 +270,22 @@ model ClosedLoopM1eCS
   Modelica.Blocks.Sources.RealExpression txvCmd(y = txv_opening_cmd);
 
   /* Drive the compressor through its rotational flange. */
+  /* 50.0 -> 58.33 rev/s (2026-08-04). THE MACHINE IS 60 Hz AND THE MODEL WAS RUNNING IT
+     AT 50. Measured from the data, not assumed: `Unit Volts` has a median of 122.9 V
+     across the run (fileshare/data 2.002.csv), i.e. a US 120 V supply, which is 60 Hz.
+     Every temperature in that file is in F, which says the same thing less directly.
+     58.33 rev/s = 3500 rpm, the 60 Hz rating for this Cubigel LBP family (2900 rpm at
+     50 Hz). The old 50.0 was 3000 rpm - the 50 Hz SYNCHRONOUS speed, so it was wrong
+     twice over: wrong mains frequency, and no slip.
+     Mass flow is directly proportional to shaft speed, so this is worth +16.7 % on its
+     own, against a measured deficit of -19.0 %.
+     WHY IT WAS FOUND LAST: it hid behind the coils. Q_evap = M_dot * dh, so a mass-flow
+     shortfall looks exactly like a coil that will not absorb heat. It was only after
+     mdot_nom (refrigerant-side U, 1.49x -> +2 W), UA_evap_nom_w_k (air-side, 2.26x ->
+     +13 W) and UA_cond_nom_w_k (1.57x -> -0.9 K) all failed to move anything that the
+     evaporator could be ruled out and the compressor became the only candidate left. */
   Modelica.Mechanics.Rotational.Sources.ConstantSpeed drive(
-    w_fixed = 2*Modelica.Constants.pi*50.0*compressor_speed_frac);
+    w_fixed = 2*Modelica.Constants.pi*58.33*compressor_speed_frac);
 
   /* ---------------- NAMED RESIDUALS (the point of this model) ----------
      Each is a separately-reported error term. Do NOT collapse them into a
@@ -284,7 +307,9 @@ model ClosedLoopM1eCS
   output Real p_discharge_pa(unit="Pa");
   output Real T_evap_sat_k(unit="K");
   output Real T_cond_sat_k(unit="K");
-  output Real superheat_k(unit="K");
+  output Real superheat_k(unit="K") "at the COIL OUTLET - what the TXV controls";
+  output Real superheat_comp_k(unit="K") "at the COMPRESSOR INLET - coil superheat plus suction-line gain";
+  output Real Q_suction_line_w(unit="W") "ambient heat into the suction line - a LOSS";
   output Real subcooling_k(unit="K");
   output Real m_dot_kg_s(unit="kg/s", start = 4.50e-3);
   output Real Q_evap_w(unit="W");
@@ -331,7 +356,11 @@ equation
   connect(comp.OutFlow, cond.InFlow);
   connect(cond.OutFlow, txv.InFlow);
   connect(txv.OutFlow, evap.InFlow);
-  connect(evap.OutFlow, comp.InFlow);
+  /* THE SUCTION LINE NOW SITS HERE, 2026-08-04. Was connect(evap.OutFlow, comp.InFlow),
+     i.e. the compressor drew straight off the coil and had to see the coil's own
+     superheat. It no longer does, which is the whole point - see SuctionLine.mo. */
+  connect(evap.OutFlow, suction.InFlow);
+  connect(suction.OutFlow, comp.InFlow);
   connect(coil_evap.port, evap.Wall_int);
   connect(coil_cond.port, cond.Wall_int);
   coil_evap.V_dot_air_m3_s = evap_airflow_m3_s;
@@ -386,7 +415,15 @@ equation
   T_air_in_evap_k       = T_box_k;
   T_air_off_evap_k      = coil_evap.T_air_off_k;
   T_air_off_cond_k      = coil_cond.T_air_off_k;
-  T_suction_k           = T_evap_sat_k + superheat_k;
+  /* 2026-08-04: now the COMPRESSOR INLET, i.e. downstream of the suction line, which is
+     both what a technician reads at the suction service port and what app.py already
+     labels this ("Suction line actual"). It used to be the coil outlet, because before
+     the suction line existed the two were the same point. `superheat_k` deliberately
+     stays at the COIL OUTLET: it is what the TXV controls and what
+     test_energy_balance_closes uses to reconstruct the evaporator outlet enthalpy. */
+  T_suction_k           = suction.T;
+  superheat_comp_k      = suction.T - T_evap_sat_k;
+  Q_suction_line_w      = suction.Q_w;
   T_discharge_k         = Med.temperature_ph(p_discharge_pa, comp.OutFlow.h_outflow);
   T_liquid_k            = T_cond_sat_k - subcooling_k;
   m_dot_circuit_kg_s_1  = m_dot_kg_s;
@@ -400,7 +437,10 @@ equation
 
   /* ---------------- residuals, reported separately ---------------- */
   res_mass_kg_s   = comp.InFlow.m_flow + txv.InFlow.m_flow;
-  res_energy_w    = Q_evap_w + W_comp_w + Q_cond_w;
+  /* Q_suction_line_w added 2026-08-04 WITH the suction line. It is a real energy input
+     to the refrigerant, so leaving it out would open this residual by exactly the
+     amount of the new heat and look like a modelling error in something else. */
+  res_energy_w    = Q_evap_w + Q_suction_line_w + W_comp_w + Q_cond_w;
   res_superheat_k = superheat_k - superheat_target_k;
   res_subcool_k   = subcooling_k;
 
