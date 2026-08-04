@@ -78,7 +78,15 @@ model ClosedLoopM1eCS
   /* 0.0035 destabilised the solver (CVode mxstep at t=6.95 s) - a 5.8x jump in every
      heat-transfer coefficient at once. 0.010 is an intermediate step (2.5x) to confirm
      the direction before dealing with the stiffness. TARGET remains ~0.0035. */
-  parameter Modelica.Units.SI.MassFlowRate mdot_nom = 0.010;
+  /* 0.010 -> 0.00306 (2026-08-04). MEASURED design flow, from
+     docs/MEASURED_REFERENCE.md: 3.055 g/s across 49 steady windows.
+     ThermoCycle scales every coil coefficient as U = Unom*(M_dot/Mdotnom)^0.8, so a
+     Mdotnom 3.3x above the real flow was cutting BOTH coils to ~26 % of nominal.
+     0.010 was itself an interim step after 0.0035 destabilised the solver on the old
+     parameter set; retrying at the correct value now the rest is calibrated.
+     PREDICTION: U up ~2.6x -> T_evap -28.6 -> warmer toward -24.2 C, Q_evap 453 -> 700+ W,
+     PR falls, eps_v rises, mdot rises toward 3 g/s. Risk: stiffness (CVode mxstep). */
+  parameter Modelica.Units.SI.MassFlowRate mdot_nom = 0.00306;
 
   /* ---------------- components ---------------- */
   CompressorEM comp(

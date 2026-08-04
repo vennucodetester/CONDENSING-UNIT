@@ -99,7 +99,23 @@ model CompressorEM
      suffix unresolved). This calibration is anchored at OUR operating PR (~10), which
      is the one that matters; do not trust it far from there.
      PREDICTION: mdot 1.54 -> ~2.0 g/s, capacity 345 -> ~450 W, T_evap -33.4 -> ~-31 C. */
-  parameter Real k_v = 0.039 "Volumetric efficiency clearance drop coefficient";
+  /* k_v 0.039 -> 0.0588 (2026-08-04). MEASURED, not catalogue-derived.
+     From docs/MEASURED_REFERENCE.md (1435 samples, 49 steady windows):
+         mass flow 3.055 g/s, suction density 4.862 kg/m3 at 2.35 bar / 29.7 F
+         eps_v = mdot/(V_s*N*rho_su) = 0.6283  at PR 6.47
+     The formula eps_v = 0.95 - k_v*(PR-1) reproduces that with k_v = 0.0588.
+     The previous 0.039 came from inverting an online catalogue whose two points
+     imply eps_v is FLAT across PR 4-10, which no compressor does; it returned
+     0.737 here, 17 % too generous.
+     PREDICTION: mass flow rises 2.17 -> ~2.6 g/s (not to 3.055: the model runs at a
+     higher PR than the machine, so eps_v is penalised more; PR should fall as the
+     coils are corrected next). Capacity up, T_evap warmer. */
+  /* WITHDRAWN 2026-08-04: k_v = 0.0588 was derived from the SUCTION TRANSDUCER, which
+     reads ~4 psi high (the coil metal measures COLDER than the refrigerant the
+     transducer implies - see docs/MEASURED_REFERENCE.md). Recomputing eps_v from the
+     coil-derived T_evap = -24.17 C gives 0.7116 at PR 7.28, i.e. k_v = 0.0380 - which
+     is where the catalogue-derived value already was. Reverted. */
+  parameter Real k_v = 0.0380 "Volumetric efficiency clearance drop coefficient";
   Real PR(start = 5.0) "Pressure ratio p_ex / p_su";
   Real epsilon_v(start = 0.75) "Volumetric efficiency";
   parameter Modelica.Units.SI.Volume V_s = 1e-4 "Swept volume";
