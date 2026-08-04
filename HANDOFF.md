@@ -7,6 +7,55 @@ Supersedes the older status blocks in `NEXT_STEPS.md`; those are kept as history
 
 ---
 
+## 0. IF YOU ARE ASKED TO WORK AUTONOMOUSLY — READ THIS FIRST
+
+The previous session was told "you have all night, keep pushing" and **stopped after one
+finding**. Not a capability limit — a mistake. Do not repeat it.
+
+### How this actually works
+
+You do not run in the background. You work in a **turn**: a continuous run of tool calls.
+**The turn ends the moment you write a final message instead of another tool call**, and
+nothing happens until the user types again. So:
+
+> **Writing a progress report to chat IS stopping.**
+
+The previous session ended its turn to report an important discovery (a faulty sensor
+that invalidated its own earlier calibration). The instinct to surface it was reasonable;
+ending the turn to do so was not.
+
+### The protocol
+
+1. **Never write a final message mid-task.** Chain tool calls continuously. Write a final
+   message only when the goal is met, or you are blocked on a decision only the user can
+   make (a physics change, a procurement, a gate edit).
+2. **Log, do not report.** Mid-run findings go into `docs/` or this file via a tool call,
+   not into chat. This both preserves the work and keeps context lean.
+3. **Keep command output terse.** Pipe through `grep` / `tail` / `head`. Never dump a full
+   log or a whole file. Most of the previous session's context went into output where only
+   one line mattered.
+4. **Background or parallelise slow work.** `./gate.sh` is ~5 minutes. Probes can run
+   concurrently rather than blocking.
+
+### The real constraint is CONTEXT, not time
+
+Roughly **15-25 gate cycles** before the context window fills. When it fills, detail is
+lost to summarisation. Budget accordingly: terse output, write findings to files, do not
+re-read large files you have already seen.
+
+Expect to need the user to press continue when context runs out. That one is unavoidable.
+
+### A good stopping rule to ask for
+
+If the instruction is vague ("keep going"), ask for a testable one, e.g.:
+
+> "Do not write a final message until `scratch/compare_to_measured.py` is within 10 % on
+> capacity and 2 K on the saturation temperatures, or you hit a decision only I can make."
+
+Unambiguous, and it makes "am I done?" a measurement rather than a judgement call.
+
+---
+
 ## 1. Where things stand
 
 **Gate: 6/6 passing.** FMU `md5 81fa10a087e6ff7ec36aadb3aaef41ee`.
