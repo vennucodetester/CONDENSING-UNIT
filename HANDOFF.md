@@ -58,7 +58,7 @@ Unambiguous, and it makes "am I done?" a measurement rather than a judgement cal
 
 ## 1. Where things stand
 
-**Gate: 6/6 passing, and now REPEATABLE.** FMU `md5 fd97454b797c9706103fff2c1ea1db3c`.
+**Gate: 6/6 passing, and now REPEATABLE.** FMU `md5 7e9e1a6f48ecd90638f5cee9dbd462fd`.
 The app runs the FMU (not the placeholder). The **banner stays up** — the couplings are
 right, the numbers are closer but not yet there.
 
@@ -225,7 +225,54 @@ should be ~0.054. Both were left alone because the model's own PR (9.53) already
 `eps_v` at 0.626, close to that figure. **To separate them you need one measurement:
 actual shaft rpm, or a compressor calibration point at a known PR.**
 
-### The next step: suction density, the last -13.3 %
+### TXV port area: tried, reverted, and it taught us the real answer
+
+Doubling `txv.Afull` 9.6e-8 -> 1.92e-7 (the valve sits at 0.70 opening, not its stop, so
+capacity looked like a free lever that avoids the `Kp` problem). Result, 4/6:
+
+| | before | after |
+|---|---|---|
+| mass flow | 2.65 g/s | **3.27 g/s (+7 % ABOVE measured)** |
+| T_evap | -27.48 C | **-25.73 C** |
+| coil superheat | 5.21 K | **0.00 K** |
+| Q_evap | 611 W | **607 W** |
+| COP | 1.34 | 1.24 |
+
+Reverted: 0.00 K superheat is a **flooded coil returning liquid to the compressor**, a
+condition the real machine is designed never to reach.
+
+**But look at the third row. Mass flow rose 23 % and capacity did not move at all.**
+That is the most informative result of the session:
+
+```
+Q_evap = M_dot * dh        dh(model) = 607/3.27 = 186 kJ/kg
+                           dh(measured) = 776/3.055 = 254 kJ/kg
+```
+
+**The remaining capacity error is not mass flow. It is refrigerating effect, -27 %.**
+Chasing flow is now pointless; at matched flow the model still delivers only 73 % of the
+duty per kilogram.
+
+### THE NEXT STEP: T_cond, because it is destroying dh
+
+`dh = h_g(evaporator out) - h_f(condenser out)`, and the model's liquid leaves a **54 C**
+condenser instead of a **45 C** one. That is ~9 K of extra liquid enthalpy, ~25 kJ/kg,
+straight off the refrigerating effect. So `T_cond` is not merely a cosmetic error on the
+comparison table — **it is the mechanism of the remaining capacity gap**, and this holds
+whether or not the measured 44.82 C is trustworthy.
+
+Note the tension this creates with charge: raising charge fixed subcooling but pushed
+`T_cond` up, and `T_cond` costs capacity. Capacity was 618 W at 58.7 g and 611 W at
+71.9 g — flat, because the two effects cancel. **Charge alone cannot win. The condenser
+has to get colder at the same charge**, which means condenser capacity, not inventory:
+
+- **Condenser airflow is the first suspect.** 0.076 m3/s was never independently
+  confirmed (the evaporator's was). It is the one input that lowers `T_cond` without
+  touching charge. Careful: `air off condenser` currently matches to +0.8 %, so raising
+  airflow will break that unless the fan curve genuinely supports more.
+- Then re-run the charge sweep at the new condenser condition.
+
+### Also open: suction density, -14.5 %
 
 Everything else is within ~3 % or is a suspect measurement. The flow deficit is entirely
 suction density (3.67 vs 4.293 kg/m3), i.e. the evaporator settling at -27.5 C instead
