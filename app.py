@@ -102,6 +102,7 @@ class PHPlot(QWidget):
         super().__init__()
         self.current: EngineResult | None = None
         self.baseline: EngineResult | None = None
+        self.previous: EngineResult | None = None
         self.defrost_visual_only = False
         self.setMinimumHeight(330)
 
@@ -254,6 +255,7 @@ class Schematic(QWidget):
         super().__init__()
         self.current: EngineResult | None = None
         self.baseline: EngineResult | None = None
+        self.previous: EngineResult | None = None
         self.show_conceptual = True
         self.selected_component = "evaporator"
         self.valve_states = {"liquid_line_solenoid": True, "hot_gas_solenoid": False}
@@ -261,9 +263,17 @@ class Schematic(QWidget):
         self.setMinimumHeight(650)
         self.setMouseTracking(True)
 
-    def set_results(self, current: EngineResult, baseline: EngineResult | None) -> None:
+    def set_results(
+        self,
+        current: EngineResult,
+        baseline: EngineResult | None,
+        previous: EngineResult | None = None,
+    ) -> None:
         self.current = current
         self.baseline = baseline
+        # Result from BEFORE the latest Calculate, drawn dulled beneath each value so
+        # the effect of the change just made is visible without remembering it.
+        self.previous = previous
         self.update()
 
     def set_conceptual_visible(self, visible: bool) -> None:
@@ -811,7 +821,9 @@ class Schematic(QWidget):
 
         q = self.current.quantities
         self._label(painter, compressor.left(), compressor.bottom() + 19, f"{_format_quantity('p_discharge_pa', q['p_discharge_pa'])} discharge", common_color)
+        self._prev_label(painter, compressor.left(), compressor.bottom() + 19, ("p_discharge_pa",))
         self._label(painter, condenser.left(), condenser.bottom() + 19, f"Cond sat {_format_quantity('T_cond_sat_k', q['T_cond_sat_k'])}", cooling_color)
+        self._prev_label(painter, condenser.left(), condenser.bottom() + 19, ("T_cond_sat_k",))
         self._label(painter, txv.left() - 10, txv.bottom() + 18, f"Open {q['txv_opening_frac'].value * 100:.0f}%", cooling_color)
         self._label(painter, header.left() - 12, header.bottom() + 18, f"{_format_quantity('p_suction_pa', q['p_suction_pa'])}  •  {_format_quantity('m_dot_kg_s', q['m_dot_kg_s'])}", common_color)
 
@@ -1017,7 +1029,9 @@ class Schematic(QWidget):
         self._label(painter, compressor.left(), compressor.bottom() + 19, f"{_format_quantity('p_discharge_pa', q['p_discharge_pa'])} discharge", common_color)
         self._label(painter, condenser.left(), condenser.bottom() + 19, f"Cond sat {_format_quantity('T_cond_sat_k', q['T_cond_sat_k'])}", cooling_color)
         self._label(painter, txv.left(), txv.bottom() + 18, f"Open {q['txv_opening_frac'].value * 100:.0f}%", cooling_color)
+        self._prev_label(painter, txv.left(), txv.bottom() + 18, ("txv_opening_frac",))
         self._label(painter, header.left(), header.bottom() + 18, f"{_format_quantity('p_suction_pa', q['p_suction_pa'])}  •  {_format_quantity('m_dot_kg_s', q['m_dot_kg_s'])}", common_color)
+        self._prev_label(painter, header.left(), header.bottom() + 18, ("p_suction_pa", "m_dot_kg_s"))
 
         painter.setPen(QColor("#344054"))
         painter.drawText(QRectF(area.left(), area.top() - 32, area.width(), 24), Qt.AlignmentFlag.AlignCenter, "FIELD-TRACED CONDENSING-UNIT TUBING TOPOLOGY")
@@ -1074,6 +1088,38 @@ class Schematic(QWidget):
     def _label(self, painter: QPainter, x: float, y: float, text: str, color: QColor) -> None:
         painter.setPen(color)
         painter.drawText(QPointF(x, y), text)
+
+    def _prev_label(self, painter: QPainter, x: float, y: float, keys: tuple[str, ...]) -> None:
+        """Draw the PREVIOUS value dulled under the current one.
+
+        Deliberately grey and one line down: it must read as history, not as a
+        second live reading. Silent when there is no previous result (first solve)
+        or when nothing moved.
+        """
+        if not self.previous:
+            return
+        parts = []
+        for key in keys:
+            was = self.previous.quantities.get(key)
+            now = self.current.quantities.get(key) if self.current else None
+            if was is None or now is None:
+                return
+            if abs(was.value - now.value) <= abs(now.value) * 1e-6:
+                continue
+            parts.append(
+                f"{was.value * 100:.0f}%" if key == "txv_opening_frac"
+                else _format_quantity(key, was)
+            )
+        if not parts:
+            return
+        font = painter.font()
+        original = font.pointSizeF()
+        font.setPointSizeF(max(6.5, original - 1.0))
+        painter.setFont(font)
+        painter.setPen(QColor("#98a2b3"))
+        painter.drawText(QPointF(x, y + 13), "was " + "  •  ".join(parts))
+        font.setPointSizeF(original)
+        painter.setFont(font)
 
 
 
@@ -1466,6 +1512,7 @@ class MainWindow(QMainWindow):
         }
         self.valve_states = {"liquid_line_solenoid": True, "hot_gas_solenoid": False}
         self.current: EngineResult | None = None
+        self.previous: EngineResult | None = None
         self.baseline: EngineResult | None = self.engine.run(EngineInput())
 
         self._build_ui()
@@ -1681,6 +1728,8 @@ class MainWindow(QMainWindow):
         })
         if self.baseline:
             result = self._with_baseline(result, self.baseline)
+        # Keep the result being replaced so the schematic can show what moved.
+        self.previous = self.current
         self.current = result
         self._render()
 
@@ -1741,7 +1790,7 @@ class MainWindow(QMainWindow):
     def _render(self) -> None:
         if not self.current:
             return
-        self.schematic.set_results(self.current, self.baseline)
+        self.schematic.set_results(self.current, self.baseline, self.previous)
         self.ph_plot.set_results(self.current, self.baseline)
         self.narration.setPlainText(airflow_narration(self.current))
         self.assumptions_label.setText("\n".join(f"• {item}" for item in self.current.assumptions))
