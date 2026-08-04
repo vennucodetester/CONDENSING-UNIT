@@ -58,7 +58,7 @@ Unambiguous, and it makes "am I done?" a measurement rather than a judgement cal
 
 ## 1. Where things stand
 
-**Gate: 6/6 passing, and now REPEATABLE.** FMU `md5 7e9e1a6f48ecd90638f5cee9dbd462fd`.
+**Gate: 6/6 passing, and now REPEATABLE.** FMU `md5 99d83db88d52149a746788a16ff85237`.
 The app runs the FMU (not the placeholder). The **banner stays up** — the couplings are
 right, the numbers are closer but not yet there.
 
@@ -90,30 +90,55 @@ for i in 1 2 3; do python -m pytest tests/test_scenarios.py -v 2>/dev/null | gre
 
 | quantity | model | measured | error | was (session 1) |
 |---|---|---|---|---|
-| T_evap | -27.48 C | **-24.17 C** | -13.7 % | -30.41 C |
-| T_cond | 54.42 C | 44.82 C | +21.4 % **(see the third trap, section 3)** | 49.16 C (+9.7 %) |
-| coil superheat | 5.21 K | **1.27 K** | +310 % | 9.16 K |
-| subcooling | 9.79 K | **8.98 K** | **+9.0 %** | 6.94 K (-22.7 %) |
-| mass flow | 2.65 g/s | **3.055 g/s** | -13.3 % | 2.19 g/s (-28.3 %) |
-| Q_evap (coil) | 611 W | **776 W** | -21.2 % | 527 W (-32.1 %) |
-| Q_cond | -1153 W | -1124 W | **-2.6 %** | -877 W (+21.9 %) |
-| COP | 1.34 | 1.38 | **-2.9 %** | 1.50 (+9.0 %) |
-| air off evaporator | -6.09 F | -7.6 F | +19.9 % | -5.25 F |
-| air off condenser | 112.24 F | 111.4 F | **+0.8 %** | 106.8 F (-4.1 %) |
-| system charge (coils) | 71.9 g | 110 g total | not comparable | 55 g |
+| T_evap | -28.59 C | **-24.17 C** | -18.3 % | -30.41 C |
+| T_cond | 46.13 C | 44.82 C | **+2.9 %** | 49.16 C (+9.7 %) |
+| coil superheat | 8.24 K | **1.27 K** | +549 % | 9.16 K |
+| subcooling | 8.62 K | **8.98 K** | **-4.0 %** | 6.94 K (-22.7 %) |
+| mass flow | 2.72 g/s | **3.055 g/s** | -11.0 % | 2.19 g/s (-28.3 %) |
+| Q_evap (coil) | 693 W | **776 W** | **-10.8 %** | 527 W (-32.1 %) |
+| Q_cond | -1225 W | -1124 W | -9.0 % | -877 W (+21.9 %) |
+| COP | 1.56 | 1.38 | +12.7 % | 1.50 (+9.0 %) |
+| air off evaporator | -6.89 F | -7.6 F | **+9.3 %** | -5.25 F |
+| air off condenser | 110.00 F | 111.4 F | **-1.3 %** | 106.8 F (-4.1 %) |
+| system charge (coils) | ~62 g | 110 g total | not comparable | 55 g |
 
 COP, `Q_cond` and both condenser air temperatures are now within 3 %. Mass flow and
 capacity have closed by more than half. `T_cond` reads worse but probably is not —
 section 3, third trap.
 
-**What is left is one number: mass flow, -13.3 %.** `Q_evap = M_dot * dh`, and dh is now
-right (subcooling matches), so the capacity error is now essentially the flow error.
+### THE DEFECT THAT WAS HOLDING EVERYTHING — the air side was plumbed CO-CURRENT
 
-Mass flow decomposes as `M_dot = rho_suction * V_s * N * eps_v`. `V_s` is nameplate,
-`N * eps_v` is pinned by the measurement (see the circularity warning in section 5), and
-the whole remaining deficit is **suction density: 3.67 kg/m3 modelled against 4.293
-measured, -14.5 %**, because the evaporator settles 3.3 K too cold. That is the one
-number to attack next.
+`CoilAirSide.mo` marched the air `T_air[1] -> T_air[N+1]` across cells 1..N while the
+refrigerant also flows 1 -> N, so air cell `i` exchanged with refrigerant cell `i`.
+**That is a parallel-flow exchanger.** A co-current coil cannot cool its air below the
+refrigerant it is leaving alongside, no matter how large its UA.
+
+This single defect produced every symptom that had resisted two sessions of diagnosis:
+
+- both coils stuck near half the effectiveness the measured air temperatures imply;
+- **total immunity to UA** — sweeping `UA_evap_nom_w_k` 132.8 -> 5000 (38x) moved
+  `Q_evap` 628.9 -> 646.7 W and then SATURATED, with air off pinned at **-21.35 C**,
+  which is exactly the refrigerant outlet (T_evap -27.85 + 6.50 K superheat). The model
+  was sitting on its co-current limit and holding there;
+- immunity to mesh refinement (N 5 -> 10, +1.4 %);
+- **invisibility to every conservation check.** `res_energy_w` read 0.00 W throughout,
+  because no energy is lost — the transfer is BOUNDED, not leaked. This is why the
+  defect survived so long: the model was perfectly self-consistent and wrong.
+
+Fixed by pairing air node `i` with refrigerant cell `N+1-i` (`counterflow = true`, a
+parameter, so the old arrangement remains reproducible). Real fin-tube coils are
+circuited counter-flow to the air.
+
+**Effect: `Q_evap` -19.0 % -> -10.8 %, and it unlocked the whole condenser** (T_cond
++10.2 % -> +2.9 %, subcooling -30.4 % -> -4.0 %) once charge and TXV gain were re-tuned
+against a coil that finally responds.
+
+### The lesson worth keeping
+
+Seven parameter levers were swept before this was found, and all seven were nearly inert.
+**Persistent insensitivity to a parameter that physics says should matter is itself the
+diagnostic.** It means the quantity is limited by structure, not by magnitude — and the
+place to look is the flow arrangement, not the coefficient.
 
 ---
 
@@ -266,11 +291,61 @@ Note the tension this creates with charge: raising charge fixed subcooling but p
 71.9 g — flat, because the two effects cancel. **Charge alone cannot win. The condenser
 has to get colder at the same charge**, which means condenser capacity, not inventory:
 
-- **Condenser airflow is the first suspect.** 0.076 m3/s was never independently
-  confirmed (the evaporator's was). It is the one input that lowers `T_cond` without
-  touching charge. Careful: `air off condenser` currently matches to +0.8 %, so raising
-  airflow will break that unless the fan curve genuinely supports more.
-- Then re-run the charge sweep at the new condenser condition.
+- ~~Condenser airflow is the first suspect.~~ **DONE, and it was wrong by 58 %.**
+  Derived from the air-side energy balance the same way the evaporator's was:
+  `Q_cond / (cp * dT)` over the running samples gives **0.1203 m3/s (255 CFM)**, not
+  0.076. The measured entering air came with it: `Air Into Cond Right` medians
+  **94.80 F = 34.89 C**, so `T_amb_k` went 305.15 -> 308.04 K. Both sensor pairings
+  imply a condenser effectiveness of 0.83-0.87.
+  **My prediction that this would drop `T_cond` to 47-48 C was WRONG**: it fell 0.8 K
+  only, because the 2.9 K warmer ambient cancelled most of the 58 % more air.
+- ~~Then re-run the charge sweep.~~ **DONE.** A colder condenser holds more liquid at
+  the same charge, so the trade moved; the lower-charge point is now better.
+
+### WHERE IT STANDS AFTER ALL OF THAT — read this before choosing a next step
+
+Capacity is **stuck at 620-630 W against a measured 776 W**, and it did not move for any
+of the following. This is the most valuable thing this session produced, because it rules
+out nearly the whole parameter space:
+
+| lever | range tried | effect on Q_evap |
+|---|---|---|
+| `mdot_nom` (refrigerant-side U) | 1.49x | +2 W |
+| `UA_evap_nom_w_k` (evaporator air side) | 2.26x | +13 W |
+| `UA_cond_nom_w_k` (condenser air side) | 1.57x | ~0 (T_cond -0.9 K) |
+| `txv.Afull` (valve capacity) | 2.0x | **-4 W, while mass flow rose 23 %** |
+| condenser `hstart` (system charge, 36-72 g) | 2.0x | 611-629 W |
+| condenser airflow + ambient | 1.58x | +8 W |
+| `N` (cells per exchanger) | 2.0x (5 -> 10) | +9 W |
+
+**Six independent levers, spanning both coils, the valve, the charge and the condenser
+air side, and capacity moves by 3 %.** Something structural is holding it, not a
+parameter. Two candidates, in order:
+
+1. ~~The compressor.~~ **CHECKED, and it is fine.** Specific work is **167.8 kJ/kg**
+   against ~176 kJ/kg measured (683.1 W `Unit Watts`, less ~50 W condenser fan, at 85 %
+   motor efficiency), i.e. **-4.7 %**. The compressor does the right work per kilogram;
+   it simply has 12 % less refrigerant to work on. Not the culprit.
+2. ~~Coarse discretisation.~~ **CHECKED, N doubled to 10: +1.4 %.** The N = 5 answers are
+   grid-converged. Do not spend time here.
+
+**THE REMAINING SUSPECT — coil effectiveness that ignores its own UA.** Both coils sit at
+about half the effectiveness implied by the measured air temperatures:
+
+| | model | measured |
+|---|---|---|
+| evaporator | 0.33 | 0.66 |
+| condenser | 0.43 | 0.83 |
+
+and **neither responds to its UA parameter** (2.26x and 1.57x, no effect), nor to mesh
+refinement. Those three facts together are not explained by anything found so far, and
+that unexplained combination — not any single error term — is where the missing 18 % of
+capacity is hiding. Start at the `port.phi` / `A_cell` flux coupling between
+`CoilAirSide.mo` and `Flow1DimCS.mo`: an area or per-cell normalisation that is wrong by
+a constant factor would produce exactly this signature, would be invisible to
+`res_energy_w` (which sums refrigerant-side terms only and reads 0.00 W), and has
+already caused one 21 %-of-the-heat leak at this same interface once before (see the
+`A 0.5 -> 0.630` note in the evaporator declaration).
 
 ### Also open: suction density, -14.5 %
 
@@ -349,6 +424,24 @@ discharge-pressure transducer is the prime suspect, exactly as the suction trans
 **Do not tune the condenser against `T_cond` until this is resolved.** It would be the
 `k_v = 0.0588` mistake a second time. Resolving it needs one measurement: a reliable
 head pressure, or a liquid-line temperature at the condenser outlet.
+
+### A FOURTH TRAP — the measured data does not close its own energy balance
+
+```
+Q_evap 776 W + W_gas 538 W (683.1 Unit Watts - 50 W fan, at 85 % motor) = 1314 W
+condenser air side                                                      = 1124 W
+                                                                    gap = 191 W (17 %)
+```
+
+Whatever the machine rejects, it must equal what it absorbs plus the work put in. These
+three measurements cannot all be right. Note the model closes its own balance exactly
+(`res_energy_w` = 0.00 W), so this is a property of the DATA, not of the model.
+
+This matters for how the comparison table is read: if `Q_cond` is right and `W` is right,
+then the true `Q_evap` is nearer 586 W — and the model's 693 W would be 18 % HIGH rather
+than 11 % low. **Do not drive capacity further until this is resolved**, or you may be
+calibrating toward a number that is itself wrong. It is the same family of problem as the
+condenser approach above and probably has the same root.
 
 ### Do NOT trust the discharge temperature
 

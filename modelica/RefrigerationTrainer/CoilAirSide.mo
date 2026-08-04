@@ -23,6 +23,27 @@ model CoilAirSide
   parameter Real cp_air = 1005.0 "Specific heat of air (J/(kg.K))";
   parameter Real rho_air = 1.2 "Density of air (kg/m3)";
 
+  /* ADDED 2026-08-04 — THIS WAS A REAL DEFECT, NOT A REFINEMENT.
+     The air used to march T_air[1] -> T_air[N+1] across cells 1..N while the refrigerant
+     also flows 1 -> N, so air cell i sat against refrigerant cell i: CO-CURRENT.
+     A co-current exchanger cannot cool the air below the refrigerant it is LEAVING
+     alongside, however large its UA. That single constraint produced every symptom that
+     had resisted diagnosis for two sessions:
+       - both coils stuck at about half the effectiveness the measured air temperatures
+         imply (evaporator 0.33 vs 0.66, condenser 0.43 vs 0.83);
+       - complete immunity to UA. Sweeping UA_air_nom 132.8 -> 5000 (38x) moved Q_evap
+         628.9 -> 646.7 W and SATURATED, with air off pinned at -21.35 C, which is
+         exactly the refrigerant outlet (T_evap -27.85 + 6.50 K superheat). That is the
+         co-current limit, reached and held;
+       - immunity to mesh refinement (N 5 -> 10 gave +1.4 %);
+       - invisibility to res_energy_w, which reads 0.00 W throughout, because NO ENERGY
+         IS LOST. The transfer is bounded, not leaked. This is why every conservation
+         check in the project passed while the coil was wrong.
+     Real fin-tube coils are circuited counter-flow to the air, and this one is too.
+     Keep the switch: co-current is the only honest way to reproduce the old results. */
+  parameter Boolean counterflow = true
+    "true = air enters at the refrigerant OUTLET end (real coils); false = the old co-current arrangement";
+
   input Real T_air_in_k = 278.15 "Inlet air temperature (K)";
   Real V_dot_air_m3_s(start = 0.076) "Actual air volume flow rate (m3/s)";
   /* MUST be `start =`, not `= `. A binding `Real x = expr` on a non-parameter is a
@@ -49,12 +70,14 @@ equation
   T_air[1] = T_air_in_k;
 
   for i in 1:N loop
+    /* `i` indexes the AIR path; `cell(i)` is the refrigerant cell it exchanges with.
+       Counter-flow pairs the first air node with the LAST refrigerant cell. */
     /* SIGN. `phi` is a `flow` variable: POSITIVE means INTO this coil component.
        Q_cell is heat from AIR into the WALL, i.e. OUT of the coil, hence the minus.
        Getting this backwards made the evaporator heat the box (air out 284.1 K from
        278.15 K in) and the condenser absorb 13.7 kW (air out 454 K). Fixed 2026-08-03. */
-    Q_cell[i] = UA_cell * (0.5 * (T_air[i] + T_air[i+1]) - port.T[i]);
-    port.phi[i] = -Q_cell[i] / A_cell;
+    Q_cell[i] = UA_cell * (0.5 * (T_air[i] + T_air[i+1]) - port.T[if counterflow then N + 1 - i else i]);
+    port.phi[if counterflow then N + 1 - i else i] = -Q_cell[i] / A_cell;
     m_dot_air * cp_air * (T_air[i] - T_air[i+1]) = Q_cell[i];
   end for;
 

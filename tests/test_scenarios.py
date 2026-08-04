@@ -58,7 +58,7 @@ STOP_TIME = 1500.0
 # operating point only.
 NOMINAL = dict(
     evap_airflow_m3_s=0.15,
-    condenser_airflow_m3_s=0.076,
+    condenser_airflow_m3_s=0.1203,
     txv_opening_frac=0.50,
     txv_size_frac=1.0,
     compressor_speed_frac=1.0,
@@ -352,7 +352,7 @@ class FmuScenarioTest(unittest.TestCase):
         low_air, s2 = run(condenser_airflow_m3_s=NOMINAL["condenser_airflow_m3_s"] * 0.60)
         self.assertTrue(s1 and s2, "not settled")
 
-        ambient = 305.15  # T_amb_k default in the model
+        ambient = 308.04  # T_amb_k default in the model - MUST track it
         rise_nom = nom["T_air_off_cond_k"] - ambient
         rise_low = low_air["T_air_off_cond_k"] - ambient
 
