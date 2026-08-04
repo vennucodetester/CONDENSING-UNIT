@@ -210,7 +210,7 @@ model ClosedLoopM1eCS
        trap). Q_cond (-2.6 %) and air off condenser (+0.8 %) are unaffected by charge
        because the condenser is air-FLOW limited, and both still match.
        REVISIT THIS the moment a trustworthy head pressure exists. */
-    hstart = linspace(4.50000e5, 2.60000e5, N),
+    hstart = linspace(5.20000e5, 2.90000e5, N),
     steadystate = false);
 
   /* ADDED 2026-08-04. The measured 21.6 K between coil outlet (1.27 K superheat) and
@@ -447,7 +447,7 @@ equation
      driving the coil to 1.27 K also feeds the compressor near-saturated vapour --
      which is not what the real compressor sees. Raising Kp cannot fix that; adding
      the suction line can. Do not re-tune this gain until it exists. */
-  tau_txv * der(txv_opening_cmd) + txv_opening_cmd = max(0.05, min(1.0, txv_opening_frac + 0.05 * (superheat_k - superheat_target_k)));
+  tau_txv * der(txv_opening_cmd) + txv_opening_cmd = max(0.05, min(1.0, txv_opening_frac + 0.04 * (superheat_k - superheat_target_k)));
   txv_saturated   = (txv_opening_cmd >= 0.999) or (txv_opening_cmd <= 0.051);
 
   /* ---------------- readouts ---------------- */

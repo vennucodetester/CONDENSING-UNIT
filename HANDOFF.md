@@ -58,7 +58,7 @@ Unambiguous, and it makes "am I done?" a measurement rather than a judgement cal
 
 ## 1. Where things stand
 
-**Gate: 6/6 passing, and now REPEATABLE.** FMU `md5 3e312792872b84931549409e3a55a513`.
+**Gate: 6/6 passing, and now REPEATABLE.** FMU `md5 99d83db88d52149a746788a16ff85237`.
 The app runs the FMU (not the placeholder). The **banner stays up** — the couplings are
 right, the numbers are closer but not yet there.
 
@@ -90,30 +90,55 @@ for i in 1 2 3; do python -m pytest tests/test_scenarios.py -v 2>/dev/null | gre
 
 | quantity | model | measured | error | was (session 1) |
 |---|---|---|---|---|
-| T_evap | -28.31 C | **-24.17 C** | -17.1 % | -30.41 C |
-| T_cond | 49.39 C | 44.82 C | +10.2 % **(see the third trap, section 3)** | 49.16 C (+9.7 %) |
-| coil superheat | 6.14 K | **1.27 K** | +383 % | 9.16 K |
-| subcooling | 6.25 K | **8.98 K** | -30.4 % | 6.94 K (-22.7 %) |
-| mass flow | 2.67 g/s | **3.055 g/s** | -12.6 % | 2.19 g/s (-28.3 %) |
-| Q_evap (coil) | 629 W | **776 W** | -19.0 % | 527 W (-32.1 %) |
-| Q_cond | -1166 W | -1124 W | **-3.8 %** | -877 W (+21.9 %) |
-| COP | 1.40 | 1.38 | **+1.8 %** | 1.50 (+9.0 %) |
-| air off evaporator | -6.26 F | -7.6 F | +17.6 % | -5.25 F |
-| air off condenser | 109.27 F | 111.4 F | **-1.9 %** | 106.8 F (-4.1 %) |
-| system charge (coils) | 58.7 g | 110 g total | not comparable | 55 g |
+| T_evap | -28.59 C | **-24.17 C** | -18.3 % | -30.41 C |
+| T_cond | 46.13 C | 44.82 C | **+2.9 %** | 49.16 C (+9.7 %) |
+| coil superheat | 8.24 K | **1.27 K** | +549 % | 9.16 K |
+| subcooling | 8.62 K | **8.98 K** | **-4.0 %** | 6.94 K (-22.7 %) |
+| mass flow | 2.72 g/s | **3.055 g/s** | -11.0 % | 2.19 g/s (-28.3 %) |
+| Q_evap (coil) | 693 W | **776 W** | **-10.8 %** | 527 W (-32.1 %) |
+| Q_cond | -1225 W | -1124 W | -9.0 % | -877 W (+21.9 %) |
+| COP | 1.56 | 1.38 | +12.7 % | 1.50 (+9.0 %) |
+| air off evaporator | -6.89 F | -7.6 F | **+9.3 %** | -5.25 F |
+| air off condenser | 110.00 F | 111.4 F | **-1.3 %** | 106.8 F (-4.1 %) |
+| system charge (coils) | ~62 g | 110 g total | not comparable | 55 g |
 
 COP, `Q_cond` and both condenser air temperatures are now within 3 %. Mass flow and
 capacity have closed by more than half. `T_cond` reads worse but probably is not —
 section 3, third trap.
 
-**What is left is one number: mass flow, -13.3 %.** `Q_evap = M_dot * dh`, and dh is now
-right (subcooling matches), so the capacity error is now essentially the flow error.
+### THE DEFECT THAT WAS HOLDING EVERYTHING — the air side was plumbed CO-CURRENT
 
-Mass flow decomposes as `M_dot = rho_suction * V_s * N * eps_v`. `V_s` is nameplate,
-`N * eps_v` is pinned by the measurement (see the circularity warning in section 5), and
-the whole remaining deficit is **suction density: 3.67 kg/m3 modelled against 4.293
-measured, -14.5 %**, because the evaporator settles 3.3 K too cold. That is the one
-number to attack next.
+`CoilAirSide.mo` marched the air `T_air[1] -> T_air[N+1]` across cells 1..N while the
+refrigerant also flows 1 -> N, so air cell `i` exchanged with refrigerant cell `i`.
+**That is a parallel-flow exchanger.** A co-current coil cannot cool its air below the
+refrigerant it is leaving alongside, no matter how large its UA.
+
+This single defect produced every symptom that had resisted two sessions of diagnosis:
+
+- both coils stuck near half the effectiveness the measured air temperatures imply;
+- **total immunity to UA** — sweeping `UA_evap_nom_w_k` 132.8 -> 5000 (38x) moved
+  `Q_evap` 628.9 -> 646.7 W and then SATURATED, with air off pinned at **-21.35 C**,
+  which is exactly the refrigerant outlet (T_evap -27.85 + 6.50 K superheat). The model
+  was sitting on its co-current limit and holding there;
+- immunity to mesh refinement (N 5 -> 10, +1.4 %);
+- **invisibility to every conservation check.** `res_energy_w` read 0.00 W throughout,
+  because no energy is lost — the transfer is BOUNDED, not leaked. This is why the
+  defect survived so long: the model was perfectly self-consistent and wrong.
+
+Fixed by pairing air node `i` with refrigerant cell `N+1-i` (`counterflow = true`, a
+parameter, so the old arrangement remains reproducible). Real fin-tube coils are
+circuited counter-flow to the air.
+
+**Effect: `Q_evap` -19.0 % -> -10.8 %, and it unlocked the whole condenser** (T_cond
++10.2 % -> +2.9 %, subcooling -30.4 % -> -4.0 %) once charge and TXV gain were re-tuned
+against a coil that finally responds.
+
+### The lesson worth keeping
+
+Seven parameter levers were swept before this was found, and all seven were nearly inert.
+**Persistent insensitivity to a parameter that physics says should matter is itself the
+diagnostic.** It means the quantity is limited by structure, not by magnitude — and the
+place to look is the flow arrangement, not the coefficient.
 
 ---
 
@@ -399,6 +424,24 @@ discharge-pressure transducer is the prime suspect, exactly as the suction trans
 **Do not tune the condenser against `T_cond` until this is resolved.** It would be the
 `k_v = 0.0588` mistake a second time. Resolving it needs one measurement: a reliable
 head pressure, or a liquid-line temperature at the condenser outlet.
+
+### A FOURTH TRAP — the measured data does not close its own energy balance
+
+```
+Q_evap 776 W + W_gas 538 W (683.1 Unit Watts - 50 W fan, at 85 % motor) = 1314 W
+condenser air side                                                      = 1124 W
+                                                                    gap = 191 W (17 %)
+```
+
+Whatever the machine rejects, it must equal what it absorbs plus the work put in. These
+three measurements cannot all be right. Note the model closes its own balance exactly
+(`res_energy_w` = 0.00 W), so this is a property of the DATA, not of the model.
+
+This matters for how the comparison table is read: if `Q_cond` is right and `W` is right,
+then the true `Q_evap` is nearer 586 W — and the model's 693 W would be 18 % HIGH rather
+than 11 % low. **Do not drive capacity further until this is resolved**, or you may be
+calibrating toward a number that is itself wrong. It is the same family of problem as the
+condenser approach above and probably has the same root.
 
 ### Do NOT trust the discharge temperature
 

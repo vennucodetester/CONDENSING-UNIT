@@ -12,6 +12,7 @@ convertPackageToLibrary(ThermoCycle, Modelica, "4.1.0");
 loadFile("RefrigerationTrainer/package.mo");
 loadFile("RefrigerationTrainer/Flow1DimCS.mo");
 loadFile("RefrigerationTrainer/WallTemperatureSource.mo");
+loadFile("RefrigerationTrainer/CoilAirSide.mo");
 loadFile("RefrigerationTrainer/CompressorEM.mo");
 loadFile("RefrigerationTrainer/SuctionLine.mo");
 loadFile("RefrigerationTrainer/ClosedLoopM1eCS.mo");
