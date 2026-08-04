@@ -58,7 +58,7 @@ Unambiguous, and it makes "am I done?" a measurement rather than a judgement cal
 
 ## 1. Where things stand
 
-**Gate: 6/6 passing, and now REPEATABLE.** FMU `md5 7873faff49c16792371df2b681a021be`.
+**Gate: 6/6 passing, and now REPEATABLE.** FMU `md5 3e312792872b84931549409e3a55a513`.
 The app runs the FMU (not the placeholder). The **banner stays up** — the couplings are
 right, the numbers are closer but not yet there.
 
@@ -291,20 +291,36 @@ out nearly the whole parameter space:
 | `txv.Afull` (valve capacity) | 2.0x | **-4 W, while mass flow rose 23 %** |
 | condenser `hstart` (system charge, 36-72 g) | 2.0x | 611-629 W |
 | condenser airflow + ambient | 1.58x | +8 W |
+| `N` (cells per exchanger) | 2.0x (5 -> 10) | +9 W |
 
 **Six independent levers, spanning both coils, the valve, the charge and the condenser
 air side, and capacity moves by 3 %.** Something structural is holding it, not a
 parameter. Two candidates, in order:
 
-1. **The compressor.** It is the only major component never independently validated,
-   and `V_s * N * eps_v` is a single lumped product of which `V_s` is nameplate and
-   `N * eps_v` is circular (below). A compressor delivering the right mass flow at the
-   wrong enthalpy rise would look exactly like this. `W_comp` is currently checked only
-   against `Unit Watts`, which includes the fans.
-2. **The evaporator air-side effectiveness**, which sits at 0.42 against 0.66 implied by
-   the measured air temperatures — but note that raising its UA 2.26x did NOT move it,
-   which is itself unexplained and worth a focused look at `CoilAirSide.mo` cell
-   discretisation (N = 5 may be too coarse for a coil with a 4 K air rise).
+1. ~~The compressor.~~ **CHECKED, and it is fine.** Specific work is **167.8 kJ/kg**
+   against ~176 kJ/kg measured (683.1 W `Unit Watts`, less ~50 W condenser fan, at 85 %
+   motor efficiency), i.e. **-4.7 %**. The compressor does the right work per kilogram;
+   it simply has 12 % less refrigerant to work on. Not the culprit.
+2. ~~Coarse discretisation.~~ **CHECKED, N doubled to 10: +1.4 %.** The N = 5 answers are
+   grid-converged. Do not spend time here.
+
+**THE REMAINING SUSPECT — coil effectiveness that ignores its own UA.** Both coils sit at
+about half the effectiveness implied by the measured air temperatures:
+
+| | model | measured |
+|---|---|---|
+| evaporator | 0.33 | 0.66 |
+| condenser | 0.43 | 0.83 |
+
+and **neither responds to its UA parameter** (2.26x and 1.57x, no effect), nor to mesh
+refinement. Those three facts together are not explained by anything found so far, and
+that unexplained combination — not any single error term — is where the missing 18 % of
+capacity is hiding. Start at the `port.phi` / `A_cell` flux coupling between
+`CoilAirSide.mo` and `Flow1DimCS.mo`: an area or per-cell normalisation that is wrong by
+a constant factor would produce exactly this signature, would be invisible to
+`res_energy_w` (which sums refrigerant-side terms only and reads 0.00 W), and has
+already caused one 21 %-of-the-heat leak at this same interface once before (see the
+`A 0.5 -> 0.630` note in the evaporator declaration).
 
 ### Also open: suction density, -14.5 %
 

@@ -80,6 +80,15 @@ model ClosedLoopM1eCS
   parameter Real tau_txv                        = 60.0    "TXV thermal bulb response time constant [s]" annotation(Evaluate=false);
 
   /* ---------------- geometry ---------------- */
+  /* GRID CONVERGENCE CHECKED 2026-08-04. Both coils run at about half the air-side
+     effectiveness of the real ones (evaporator 0.33 vs 0.66, condenser 0.43 vs 0.83)
+     while being insensitive to their own UA, which is the signature of an under-resolved
+     high-NTU coil with upwind differencing. So N was doubled to 10 as a test.
+     RESULT: Q_evap 629 -> 638 W, +1.4 %. Gate stayed 6/6. That is NOT the missing
+     capacity, and it means the N = 5 answers are converged, not a meshing artifact -
+     which is worth knowing before anyone spends another day on the discretisation.
+     Reverted to 5: doubling the states doubles a solve that already blocks the UI
+     (section 8 of HANDOFF.md) for a 1.4 % gain. */
   parameter Integer N = 5 "cells per heat exchanger";
   /* 4.85e5 -> 2.099e5 (2026-08-04). THE STARTUP TRANSIENT WAS THE STIFFNESS.
      4.85 bar is Tsat = +0.72 C, but the loop settles near -28 C (1.65-1.9 bar): the
