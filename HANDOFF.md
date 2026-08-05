@@ -36,6 +36,24 @@ ending the turn to do so was not.
    one line mattered.
 4. **Background or parallelise slow work.** `./gate.sh` is ~5 minutes. Probes can run
    concurrently rather than blocking.
+5. **THIS PROJECT IS TOKEN-CONSTRAINED. Spend them like money.** The user has stopped
+   work mid-task to wait for quota to refill. Tokens, not wall clock, decide how much
+   gets done — so:
+   - **Every character a command prints is charged, permanently.** Always
+     `| grep -E '...'`, `| tail -5`, `| head -20`. Never `cat` a whole file, never dump
+     a build log, never print a full CSV row.
+   - **Do not re-read what you have already read.** Re-opening a large file to check one
+     line is one of the most expensive mistakes available.
+   - **Do not re-verify what is already established.** A green gate you just ran does not
+     need running again to feel sure.
+   - **Batch related commands into one call** rather than a chain of small ones; each
+     round trip carries its own overhead.
+   - **Never paste large output into chat.** Summarise the one number that mattered.
+   - **Do not narrate.** Explaining what you are about to do, then doing it, then
+     recapping it, costs three times what doing it costs.
+
+   A useful test before any command: *"which single line of this output do I actually
+   need?"* If you can name it, filter for it.
 
 ### The real constraint is CONTEXT, not time
 
