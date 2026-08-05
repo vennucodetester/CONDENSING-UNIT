@@ -55,11 +55,36 @@ ending the turn to do so was not.
    A useful test before any command: *"which single line of this output do I actually
    need?"* If you can name it, filter for it.
 
-### The real constraint is CONTEXT, not time
+### USE TOKENS CAREFULLY — THIS IS A STANDING INSTRUCTION FROM THE USER
 
-Roughly **15-25 gate cycles** before the context window fills. When it fills, detail is
-lost to summarisation. Budget accordingly: terse output, write findings to files, do not
-re-read large files you have already seen.
+**"Make every token count."** Stated directly by the user on 2026-08-04 and it applies to
+every session from now on. It is not a style preference; context is the binding
+constraint on how much of this calibration can be finished before detail is lost to
+summarisation.
+
+Roughly **15-25 gate cycles** fit in a context window. Budget accordingly.
+
+**What actually burns context here — all of these were paid for in session 2:**
+
+1. **`fmpy` and the FMU write a wall of stderr on every run** — CoolProp banners
+   (`TTSE is off`, `calc_transport has the value of 1`, ...), `LOG_ASSERT` lines, and
+   full Python tracebacks for each ctypes callback failure. One un-redirected probe cost
+   several thousand tokens to show three numbers.
+   **Always end FMU commands with `2>/dev/null`,** and pipe through `tail`/`grep`.
+2. **`./gate.sh` prints far more than the verdict.** Use
+   `bash ./gate.sh 2>&1 | grep -cE " PASSED"` when you only need the count, or
+   `| grep -E "built ok|FAILED"` when you need to know which failed. Never let it print
+   in full.
+3. **Editing a `.mo` file with `Edit`/`Write` can echo the whole file back** through the
+   linter-diff mechanism — this file is 500+ lines and the model is 450+. Prefer
+   `sed -i` for a one-value change; reserve `Edit` for the comment blocks that must be
+   written properly.
+4. **Do not re-read a file you have already read.** Grep the specific lines instead.
+5. **Print derived numbers, not raw data.** A one-line `python -c` that computes the
+   comparison beats dumping a table you then have to reason over.
+
+**Log findings to files, not to chat.** Chat costs context and is lost; `HANDOFF.md` and
+`docs/` persist and are what the next session actually reads.
 
 Expect to need the user to press continue when context runs out. That one is unavoidable.
 
