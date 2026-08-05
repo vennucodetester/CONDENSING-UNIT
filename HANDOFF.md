@@ -1,4 +1,4 @@
-# HANDOFF — refrigeration trainer, state as of 2026-08-04 (session 2)
+# HANDOFF — refrigeration trainer, state as of 2026-08-04 (end of session 2)
 
 **Self-contained. You should not need the conversation this came from.**
 
@@ -142,229 +142,85 @@ place to look is the flow arrangement, not the coefficient.
 
 ---
 
-## 2. What was tried, what worked, and what to do next
+## 2. What to do next
 
-### Why the queued tuning steps were the wrong target
+### Do NOT re-run these. Seven levers, all nearly inert.
 
-The old plan said: `mdot_nom`, then `UA_evap_nom_w_k`, then `UA_cond_nom_w_k`.
-That plan is now disproven at its first step.
+Every one of these was swept with the gate repeated at each point. They are inert because
+the coils were structurally limited (section 1), and re-testing them now that the coil is
+fixed is reasonable ONLY for `UA_evap_nom_w_k` — the rest were sound to begin with.
 
-Dropping `mdot_nom` 0.010 -> 0.006 raises every coil coefficient by
-`(10/6)^0.8 = 1.49x`, and **moved `Q_evap` by 2 W** (527 -> 529). So the evaporator is
-**not refrigerant-side limited**, and the two UA steps behind it cannot be binding
-either. Do not spend gates on them.
-
-### What is actually blocking
-
-The machine runs **1.27 K superheat at the coil outlet** and **22.88 K at the compressor
-inlet**. The difference is ~105 W of suction-line heat gain (section 6.1). The model has
-no suction line, so **one superheat value has to serve both roles**, and the two roles
-want opposite things:
-
-- to match the coil, it must run near-flooded (1.27 K);
-- to match the compressor, the gas entering it must be well superheated (22.88 K).
-
-This was tested, not assumed. Raising the TXV gain `Kp` drives coil superheat down and
-every headline error improves — and the gate rejects it, repeatably:
-
-| Kp | superheat | mdot | gate |
-|---|---|---|---|
-| 0.05 (kept) | 7.18 K | 2.58 g/s | **6/6** |
-| 0.10 | 5.08 K | 2.77 g/s | 4/6 |
-| 0.20 | 3.35 K | 2.85 g/s (-6.8 %) | 4/6 |
-
-Both failures are physical, not artifacts:
-
-1. **Opening the valve stops raising mass flow** (2.899 vs 2.990 g/s). Closed-loop
-   sensitivity is `d(opening)/d(frac) = 1 + Kp*dSH/dfrac`; at high `Kp` the feedback
-   cancels the operator's own command. A flooded coil's TXV genuinely loses authority.
-2. **Energy balance opens to 2.0 %** as the coil outlet approaches saturation.
-
-So `Kp` was left at 0.05. `superheat_target_k` **was** corrected 7.0 -> 1.27 K (the
-measured value) and kept — that change alone is worth -26.7 % -> -15.7 % on mass flow.
-
-That reasoning about subcooling turned out to be **wrong**, and is kept here only so it
-is not re-derived: subcooling was zero because of lost charge, not a missing receiver.
-See the charge finding below.
-
-### The suction line was added. It did NOT unlock the gain — but it was right anyway
-
-`SuctionLine.mo` now sits between `evap.OutFlow` and `comp.InFlow`. It reproduces the
-compressor inlet closely (**T_suction -0.64 C against a measured -1.29 C**, Q 81.6 W
-against ~105 W) and it is what took COP from +13.2 % to about 0.
-
-**The stated prediction that it would make `Kp` 0.10-0.20 admissible was WRONG.** With
-the suction line in place, `Kp` 0.20 and 0.10 still fail the same two tests. `Kp` stays
-at **0.05**. The valve-authority test is a correct claim: a controller that reverses the
-operator's own command is non-physical, whatever it does to the error table.
-
-### THE BIG RESULT: no coil UA is the constraint. Three tried, all dead.
-
-| knob | change | effect |
+| lever | range tried | effect on Q_evap |
 |---|---|---|
-| `mdot_nom` (refrigerant-side U, both coils) | 1.49x | `Q_evap` **+2 W** |
-| `UA_evap_nom_w_k` (evaporator air side) | 2.26x | `Q_evap` **+13 W** |
-| `UA_cond_nom_w_k` (condenser air side) | 1.57x | `T_cond` **-0.9 K** |
+| `mdot_nom` (refrigerant-side U) | 1.49x | +2 W |
+| `UA_evap_nom_w_k` (evaporator air side) | 2.26x, then 38x | +13 W, then SATURATED |
+| `UA_cond_nom_w_k` (condenser air side) | 1.57x | ~0 (T_cond -0.9 K) |
+| `txv.Afull` (valve capacity) | 2.0x | -4 W, while mass flow rose 23 % |
+| condenser `hstart` (charge, 36-72 g) | 2.0x | 611-629 W |
+| condenser airflow + ambient | 1.58x | +8 W |
+| `N` (cells per exchanger) | 5 -> 10 | +9 W |
 
-All three reverted to their sheet-derived values. **Do not spend further gates on coil
-conductances.** The evaporator is not heat-transfer limited in either fluid, and the
-condenser is air-FLOW limited, not UA limited — which is why `air off condenser` already
-matches to 0.7 %.
+Two components were also checked and cleared outright:
 
-### What actually moved the numbers, and what is left
+- **The compressor.** Specific work **167.8 kJ/kg** against ~176 measured, -4.7 %. It
+  does the right work per kilogram.
+- **The mesh.** N 5 -> 10 gives +1.4 %, so the N = 5 results are grid-converged.
 
-1. **The compressor was running at the wrong mains frequency.** `w_fixed` was 50 Hz;
-   `Unit Volts` medians **122.9 V** across the run, so the machine is US 120 V / 60 Hz.
-   Corrected to 58.33 rev/s (3500 rpm, the 60 Hz rating for this Cubigel LBP family;
-   the old 3000 rpm was the 50 Hz *synchronous* speed, so it was wrong twice — wrong
-   frequency AND no slip). Worth +16.7 % open-loop; the closed loop kept **+8.5 %**,
-   because it self-limits exactly as section 7.6 warns.
-2. **Charge sets subcooling, and charge is set by the initial condition.** Making the
-   condenser start profile liquid-heavy took `M_charge` 36.4 -> 58.7 g and subcooling
-   0.00 -> 5.29 K. Note the trap I fell into: the `p_evap_start` fix *itself* removed
-   ~19 g of charge (evaporator vapour is 2.3x less dense at 2.099 bar than at 4.85), and
-   that — not the missing receiver — is why subcooling had collapsed to zero.
+### The TXV gain, and why it is 0.04
 
-3. **Charge was raised to match subcooling.** The condenser `hstart` profile is the only
-   charge control in the model (no receiver, no liquid line). Swept and recorded in the
-   comment beside it: 36.4 g / 0.00 K, 58.7 g / 5.29 K, 63.1 g / 6.63 K (**5/6**),
-   71.9 g / 9.79 K. Chose 71.9 g — lowest total error, subcooling within 9 %.
+The proportional law is `opening = clamp(txv_opening_frac + Kp*(SH - SH_target))`, and
+closed-loop valve authority is `d(opening)/d(frac) = 1 + Kp*dSH/dfrac`. Raise `Kp` too
+far and the feedback cancels the operator's own command — the valve stops being a
+control, which `test_more_mass_flow_raises_discharge_pressure` correctly rejects.
+
+Swept AFTER the counterflow fix:
+
+| Kp | superheat | mass flow | Q_evap | gate |
+|---|---|---|---|---|
+| 0.05 | 7.04 K | 2.75 g/s | 697 W | **5/6** — authority +4.8 %, bar is +5 % |
+| **0.04 (current)** | 8.24 K | 2.72 g/s | 693 W | **6/6** |
+| 0.03 | 9.71 K | 2.63 g/s | 674 W | 6/6, but capacity drops |
+
+0.05 fails by 0.2 percentage points. It is tempting and it is not available.
+**Do not "fix" this by loosening the 1.05 factor in that test.**
 
 ### A CIRCULARITY YOU MUST NOT WALK INTO
 
-`k_v = 0.0380` was fitted so that `eps_v = 0.95 - k_v*(PR-1)` gives **0.7116** at the
-measured PR of 7.28. But that 0.7116 was itself computed from the measured mass flow
-**assuming a 50 rev/s shaft**. So:
+`k_v = 0.0380` was fitted so `eps_v = 0.95 - k_v*(PR-1)` gives **0.7116** at the measured
+PR of 7.28. But that 0.7116 was itself computed from measured mass flow **assuming a
+50 rev/s shaft**. Since
 
 ```
 M_dot = rho_suction * V_s * (N * eps_v)
 ```
 
-and the data pins only the **product** `N * eps_v = 35.6 rev/s`. Deriving "shaft speed"
-from the data returns exactly 3000 rpm because that is what was fed in. **It is not
-independent evidence, and it must not be cited as confirmation of the speed.**
+the data pins only the **product** `N * eps_v = 35.6 rev/s`. Deriving "shaft speed" from
+the data returns exactly 3000 rpm because that is what was fed in. **That is not
+independent evidence and must never be cited as confirmation of the speed.**
 
-The 60 Hz correction rests on the supply voltage (122.9 V), which *is* independent. If
-the true speed is 3500 rpm then `eps_v` at PR 7.28 is 0.610, not 0.7116, and `k_v`
-should be ~0.054. Both were left alone because the model's own PR (9.53) already puts
-`eps_v` at 0.626, close to that figure. **To separate them you need one measurement:
-actual shaft rpm, or a compressor calibration point at a known PR.**
+The 60 Hz correction rests on the supply voltage (122.9 V median), which IS independent.
+Separating `N` from `eps_v` needs one new measurement: actual shaft rpm, or a compressor
+capacity point at a stated rpm and PR.
 
-### TXV port area: tried, reverted, and it taught us the real answer
+### THE NEXT STEP — resolve the measurement contradictions BEFORE tuning further
 
-Doubling `txv.Afull` 9.6e-8 -> 1.92e-7 (the valve sits at 0.70 opening, not its stop, so
-capacity looked like a free lever that avoids the `Kp` problem). Result, 4/6:
+Three of the four traps in section 3 are unresolved, and two of them now bound what can
+be believed about the remaining error:
 
-| | before | after |
-|---|---|---|
-| mass flow | 2.65 g/s | **3.27 g/s (+7 % ABOVE measured)** |
-| T_evap | -27.48 C | **-25.73 C** |
-| coil superheat | 5.21 K | **0.00 K** |
-| Q_evap | 611 W | **607 W** |
-| COP | 1.34 | 1.24 |
+1. **The data does not close its own energy balance** (fourth trap, 17 % gap). If
+   `Q_cond` and `Unit Watts` are right, true `Q_evap` is nearer 586 W and the model's
+   693 W is 18 % HIGH rather than 11 % low. **The sign of the remaining capacity error
+   is currently unknown.** Tuning capacity further without settling this risks
+   calibrating toward a wrong number — exactly the `k_v = 0.0588` mistake again.
+2. **The condenser approach is impossible** (third trap, 0.71 K). Until a trustworthy
+   head pressure exists, `T_cond` is not a valid target — though it now reads +2.9 %
+   anyway, so this is less urgent than it was.
 
-Reverted: 0.00 K superheat is a **flooded coil returning liquid to the compressor**, a
-condition the real machine is designed never to reach.
-
-**But look at the third row. Mass flow rose 23 % and capacity did not move at all.**
-That is the most informative result of the session:
-
-```
-Q_evap = M_dot * dh        dh(model) = 607/3.27 = 186 kJ/kg
-                           dh(measured) = 776/3.055 = 254 kJ/kg
-```
-
-**The remaining capacity error is not mass flow. It is refrigerating effect, -27 %.**
-Chasing flow is now pointless; at matched flow the model still delivers only 73 % of the
-duty per kilogram.
-
-### THE NEXT STEP: T_cond, because it is destroying dh
-
-`dh = h_g(evaporator out) - h_f(condenser out)`, and the model's liquid leaves a **54 C**
-condenser instead of a **45 C** one. That is ~9 K of extra liquid enthalpy, ~25 kJ/kg,
-straight off the refrigerating effect. So `T_cond` is not merely a cosmetic error on the
-comparison table — **it is the mechanism of the remaining capacity gap**, and this holds
-whether or not the measured 44.82 C is trustworthy.
-
-Note the tension this creates with charge: raising charge fixed subcooling but pushed
-`T_cond` up, and `T_cond` costs capacity. Capacity was 618 W at 58.7 g and 611 W at
-71.9 g — flat, because the two effects cancel. **Charge alone cannot win. The condenser
-has to get colder at the same charge**, which means condenser capacity, not inventory:
-
-- ~~Condenser airflow is the first suspect.~~ **DONE, and it was wrong by 58 %.**
-  Derived from the air-side energy balance the same way the evaporator's was:
-  `Q_cond / (cp * dT)` over the running samples gives **0.1203 m3/s (255 CFM)**, not
-  0.076. The measured entering air came with it: `Air Into Cond Right` medians
-  **94.80 F = 34.89 C**, so `T_amb_k` went 305.15 -> 308.04 K. Both sensor pairings
-  imply a condenser effectiveness of 0.83-0.87.
-  **My prediction that this would drop `T_cond` to 47-48 C was WRONG**: it fell 0.8 K
-  only, because the 2.9 K warmer ambient cancelled most of the 58 % more air.
-- ~~Then re-run the charge sweep.~~ **DONE.** A colder condenser holds more liquid at
-  the same charge, so the trade moved; the lower-charge point is now better.
-
-### WHERE IT STANDS AFTER ALL OF THAT — read this before choosing a next step
-
-Capacity is **stuck at 620-630 W against a measured 776 W**, and it did not move for any
-of the following. This is the most valuable thing this session produced, because it rules
-out nearly the whole parameter space:
-
-| lever | range tried | effect on Q_evap |
-|---|---|---|
-| `mdot_nom` (refrigerant-side U) | 1.49x | +2 W |
-| `UA_evap_nom_w_k` (evaporator air side) | 2.26x | +13 W |
-| `UA_cond_nom_w_k` (condenser air side) | 1.57x | ~0 (T_cond -0.9 K) |
-| `txv.Afull` (valve capacity) | 2.0x | **-4 W, while mass flow rose 23 %** |
-| condenser `hstart` (system charge, 36-72 g) | 2.0x | 611-629 W |
-| condenser airflow + ambient | 1.58x | +8 W |
-| `N` (cells per exchanger) | 2.0x (5 -> 10) | +9 W |
-
-**Six independent levers, spanning both coils, the valve, the charge and the condenser
-air side, and capacity moves by 3 %.** Something structural is holding it, not a
-parameter. Two candidates, in order:
-
-1. ~~The compressor.~~ **CHECKED, and it is fine.** Specific work is **167.8 kJ/kg**
-   against ~176 kJ/kg measured (683.1 W `Unit Watts`, less ~50 W condenser fan, at 85 %
-   motor efficiency), i.e. **-4.7 %**. The compressor does the right work per kilogram;
-   it simply has 12 % less refrigerant to work on. Not the culprit.
-2. ~~Coarse discretisation.~~ **CHECKED, N doubled to 10: +1.4 %.** The N = 5 answers are
-   grid-converged. Do not spend time here.
-
-**THE REMAINING SUSPECT — coil effectiveness that ignores its own UA.** Both coils sit at
-about half the effectiveness implied by the measured air temperatures:
-
-| | model | measured |
-|---|---|---|
-| evaporator | 0.33 | 0.66 |
-| condenser | 0.43 | 0.83 |
-
-and **neither responds to its UA parameter** (2.26x and 1.57x, no effect), nor to mesh
-refinement. Those three facts together are not explained by anything found so far, and
-that unexplained combination — not any single error term — is where the missing 18 % of
-capacity is hiding. Start at the `port.phi` / `A_cell` flux coupling between
-`CoilAirSide.mo` and `Flow1DimCS.mo`: an area or per-cell normalisation that is wrong by
-a constant factor would produce exactly this signature, would be invisible to
-`res_energy_w` (which sums refrigerant-side terms only and reads 0.00 W), and has
-already caused one 21 %-of-the-heat leak at this same interface once before (see the
-`A 0.5 -> 0.630` note in the evaporator declaration).
-
-### Also open: suction density, -14.5 %
-
-Everything else is within ~3 % or is a suspect measurement. The flow deficit is entirely
-suction density (3.67 vs 4.293 kg/m3), i.e. the evaporator settling at -27.5 C instead
-of -24.2 C. In order of expected value:
-
-- **Do NOT reach for coil UA.** Three conductances, all inert. It is not a heat-transfer
-  problem.
-- **Measure the shaft rpm** and break the circularity above. It is the least-evidenced
-  number in the model.
-- **Resolve the condenser approach contradiction (section 3)** — a trustworthy head
-  pressure would re-open `T_cond` as a target and let the charge choice be revisited.
-- ~~Check `T_box_k` against the data.~~ **DONE, it is correct.** Over 8,623 running
-  samples, `Air Into Evap Left` medians **+0.77 F** and `Air Into Evap Right`
-  **-1.86 F**, straddling the model's 0.00 F. `Air Out of Evap Right` medians -7.90 F,
-  consistent with the -7.6 F reference. The entering air is not the problem.
-
----
+**If you must make model progress while those are open**, the honest target is superheat
+(+549 %), which is structural rather than parametric: the machine holds 1.27 K at the
+coil outlet and 22.88 K at the compressor, and the model's single proportional TXV law
+cannot reproduce a real thermostatic element's near-integral behaviour without losing
+valve authority. That needs a better TXV model, not a better gain. See section 6.
 
 ## 3. The measured reference — READ `docs/MEASURED_REFERENCE.md`
 
@@ -468,6 +324,9 @@ against it.** Use `Unit Watts` (685 W, minus ~50 W condenser fan) instead.
 | The `mxstep` stalls were solver stiffness needing gentler parameter steps | **PARTLY WRONG** — the dominant cause was `p_evap_start` being 30 K too warm, i.e. a startup transient. Fixing the initial condition cured both the stalls at 0.006 and the nondeterminism. |
 | Adding the suction line will make TXV gain 0.10-0.20 admissible | **WRONG (2026-08-04)** — my own prediction, scored and failed. Both gains still break valve authority and the energy balance with the suction line present. The suction line was still correct on its own merits (COP +13.2 % -> -0.3 %). |
 | Subcooling collapsed to 0 K because the model has no receiver or liquid line | **WRONG (2026-08-04)** — it collapsed because the `p_evap_start` fix removed ~19 g of charge. Restoring charge through the condenser start profile brought it back to 5.29 K. |
+| The coils' poor effectiveness is a conductance, mesh or charge problem | **WRONG (2026-08-04)** — it was the FLOW ARRANGEMENT. `CoilAirSide` was co-current. Section 1. |
+| The compressor is the remaining suspect | **WRONG (2026-08-04)** — specific work 167.8 kJ/kg against ~176 measured, -4.7 %. |
+| Coarse discretisation (N=5) limits the coils | **WRONG (2026-08-04)** — N=10 gives +1.4 %. Grid-converged. |
 | Some coil conductance is the binding constraint on capacity | **WRONG (2026-08-04)** — all three were tried and none moved anything. See section 2. |
 | `T_box_k` (0 F) might not match the box air in the measured windows | **WRONG (2026-08-04)** — measured medians are +0.77 F and -1.86 F on the two evaporator inlet sensors. 0 F is right. |
 | The measured `T_cond` of 44.82 C is a valid calibration target | **DOUBTFUL (2026-08-04)** — it implies a 0.71 K condenser approach, which is impossible. Section 3, third trap. |
@@ -484,20 +343,22 @@ against it.** Use `Unit Watts` (685 W, minus ~50 W condenser fan) instead.
 | condenser `A` / `V` | 0.42 m2 / 183 cm3 | Hussmann 3113227 microchannel drawing |
 | `T_box_k` | 255.37 K (0 F) | CoilDesigner LT sheet |
 | evaporator airflow | 0.15 m3/s (318 CFM) | fan curve x coil dP; **confirmed by measurement** |
-| condenser airflow | 0.076 m3/s (161 CFM) | fan curve x coil dP |
-| `UA_evap_nom_w_k` | 132.8 | CoilDesigner mean-temperature method — soft, but **proven not to be the constraint** |
-| `UA_cond_nom_w_k` | 575.0 | fitted to a 12.95 K approach — soft; condenser now matches to 0.1 %, so leave it |
+| condenser airflow | **0.1203 m3/s (255 CFM)** | air-side energy balance over the running samples — MEASURED, was an 0.076 fan-curve estimate |
+| `T_amb_k` (condenser inlet) | **308.04 K (94.80 F)** | measured `Air Into Cond Right`; the LEFT sensor reads 88.48 F, see section 3 |
+| `CoilAirSide.counterflow` | **true** | real coils are circuited counter-flow. The old co-current arrangement was THE defect — section 1 |
+| `UA_evap_nom_w_k` | 132.8 | CoilDesigner mean-temperature method — still soft. It was inert only because the coil was co-current; **worth ONE re-test now that it is not** |
+| `UA_cond_nom_w_k` | 575.0 | fitted to a 12.95 K approach — soft; `T_cond` now reads +2.9 %, so leave it |
 | compressor speed | **58.33 rev/s (3500 rpm)** | 60 Hz, from a measured 122.9 V median supply. Was 50.0 (3000 rpm, 50 Hz synchronous) |
-| `superheat_target_k` | 1.27 | measured coil-outlet superheat |
 | suction line `UA_suction_w_k` | 2.5 | 105 W measured over a 44 K mean driving dT |
-| condenser `hstart` | **linspace(4.5e5, 2.6e5, N)** | sets system charge -> 58.7 g, subcooling 5.29 K |
+| condenser `hstart` | **linspace(5.2e5, 2.9e5, N)** | THE ONLY charge control (no receiver, no liquid line). Gives subcooling -4.0 %. Re-tuned after the counterflow fix |
 | `mdot_nom` | **0.006** | 0.00306 is the measured flow and is CORRECT in principle, but the model will not integrate there — see below |
 | `p_evap_start` | **2.099e5** | Psat at the measured -24.17 C. Was 4.85e5 (= +0.72 C) — the startup-transient bug behind the flaky gate |
 | `evap.Tstart_inlet/outlet` | **248.99 / 250.25 K** | same measured state, kept consistent with `p_evap_start` |
 | `evap.hstart` | **2.95116e5 -> 5.49227e5** | liquid at 8.98 K subcooling -> vapour at 1.27 K superheat |
 | `comp.T_su_start` | **271.86 K** | measured compressor inlet (-24.17 C + 22.88 K) |
 | `superheat_target_k` | **1.27** | measured coil-outlet superheat. Was a generic 7.0 |
-| TXV `Kp` | 0.05 | 0.10 and 0.20 both tried and reverted — section 2 |
+| TXV `Kp` | **0.04** | swept after the counterflow fix. 0.05 is better physics but fails valve authority by 0.2 points — section 2 |
+| `N` | 5 | grid-converged: N=10 gives +1.4 % |
 
 ### Why `mdot_nom` is 0.006 and not the measured 0.00306
 
@@ -549,4 +410,13 @@ remaining error lives.
   **DONE 2026-08-04** — both deleted, 408 lines removed (2059 -> 1651). Neither name was
   referenced anywhere but its own `def`. `paintEvent` is the live one. The other 16 tests
   (including `test_ui_workflow`) still pass.
-- **The suction line — section 2. This is the next real step and it needs your decision.**
+- ~~The suction line.~~ **DONE 2026-08-04** — `SuctionLine.mo`, ~82 W of ambient gain,
+  reproduces the measured compressor inlet to 0.65 K.
+- **A trustworthy head pressure** — resolves the third trap. Until then `T_cond` is not a
+  valid calibration target.
+- **Actual compressor shaft rpm** — breaks the `N * eps_v` circularity in section 2.
+  Nothing in the existing data can separate them.
+- **Where the two condenser inlet probes are physically mounted.** They disagree by
+  6.3 F. The 255 CFM figure depends on which one represents true entering air.
+- **Which of `Q_evap`, `Q_cond` or `Unit Watts` is wrong** (fourth trap). Until this is
+  settled, the SIGN of the remaining capacity error is unknown.
