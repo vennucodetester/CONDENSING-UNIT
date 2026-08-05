@@ -112,6 +112,19 @@ REQUIRED_OUTPUTS = (
     "m_dot_circuit_kg_s_2",
     "txv_saturated",
     "T_air_off_cond_k",
+    # The valve's ACTUAL modulated opening. `txv_opening_frac` is a fixed
+    # parameter -- reading it back tells you only what you commanded, so it can
+    # never move. This is the one that responds.
+    "txv_opening_cmd",
+    # Refrigerant inventory. COILS ONLY -- the model contains no liquid line,
+    # filter-drier, receiver, compressor shell or oil, so the total here is
+    # roughly 43 g against a ~110 g real system charge. The remainder lives in
+    # volumes that are not modelled (M3). The total is also pinned by the startup
+    # condition and barely moves; the evaporator/condenser SPLIT is the part that
+    # responds to operation, and it is the part worth showing.
+    "M_charge_kg",
+    "M_charge_evap_kg",
+    "M_charge_cond_kg",
 )
 
 

@@ -82,6 +82,15 @@ class DemoAirflowEngine:
             "m_dot_circuit_kg_s_2": mass_flow * 0.49,
             "txv_saturated": float(txv_opening >= 0.999),
             "T_air_off_cond_k": c_to_k(35.0 + (capacity_kw + 1.32) / 4.0),
+            # No valve dynamics in this engine, so the actual opening can only echo
+            # the command. On the FMU this is a genuine modulated output.
+            "txv_opening_cmd": txv_opening,
+            # Placeholder inventory. This engine has no coil volumes, so these are
+            # flat stand-ins that exist only to satisfy REQUIRED_OUTPUTS -- they are
+            # NOT a charge calculation and must never be read as one.
+            "M_charge_evap_kg": 0.0061,
+            "M_charge_cond_kg": 0.0374,
+            "M_charge_kg": 0.0435,
         }
         values["Q_cond_w"] = values["Q_evap_w"] + values["W_comp_w"]
         values["cop"] = values["Q_evap_w"] / values["W_comp_w"]
@@ -112,6 +121,10 @@ class DemoAirflowEngine:
             "m_dot_circuit_kg_s_2": ("Circuit 2 mass flow", "kg/s"),
             "txv_saturated": ("TXV at limit", "bool"),
             "T_air_off_cond_k": ("Air leaving condenser", "K"),
+            "txv_opening_cmd": ("TXV actual opening", "frac"),
+            "M_charge_evap_kg": ("Evaporator charge (coil only)", "kg"),
+            "M_charge_cond_kg": ("Condenser charge (coil only)", "kg"),
+            "M_charge_kg": ("Coil charge total (no lines/drier/shell)", "kg"),
         }
         quantities = {
             key: Quantity(labels[key][0], value, labels[key][1], assumed if key == "T_air_in_evap_k" else prov)

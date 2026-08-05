@@ -59,8 +59,10 @@ def display_value(key: str, value: float, *, delta: bool = False) -> float:
         return w_to_btu_per_hour(value)
     if key.startswith("m_dot") and key.endswith("_kg_s"):
         return kg_s_to_lb_hour(value)
-    if key == "txv_opening_frac":
+    if key in {"txv_opening_frac", "txv_opening_cmd"}:
         return value * 100.0
+    if key.endswith("_kg"):
+        return kg_to_g(value)
     return value
 
 
@@ -75,8 +77,8 @@ def display_unit(key: str, si_unit: str) -> str:
         return "BTU/hr"
     if key.startswith("m_dot") and key.endswith("_kg_s"):
         return "lb/hr"
-    if key == "charge_kg":
+    if key.endswith("_kg"):
         return "g"
-    if key == "txv_opening_frac":
+    if key in {"txv_opening_frac", "txv_opening_cmd"}:
         return "%"
     return si_unit

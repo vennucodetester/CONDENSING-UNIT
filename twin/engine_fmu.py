@@ -54,6 +54,20 @@ class FmuEngine:
         self.nominal_condenser_airflow_m3_s = nominal_condenser_airflow_m3_s
         self._validate_interface()
 
+    # Per-coil charge is a component variable inside the model, not a top-level
+    # output, so the app's friendly key is mapped onto the real FMU name here
+    # rather than renaming things in the Modelica source (which would force an
+    # FMU rebuild for a display-only change). `evap`/`cond` are the two
+    # Flow1Dim exchangers in ClosedLoopM1eCS.
+    OUTPUT_ALIASES = {
+        "M_charge_evap_kg": "evap.M_tot",
+        "M_charge_cond_kg": "cond.M_tot",
+    }
+
+    @classmethod
+    def _fmu_name(cls, key: str) -> str:
+        return cls.OUTPUT_ALIASES.get(key, key)
+
     def _validate_interface(self) -> None:
         if not self.fmu_path.exists():
             raise FmuUnavailable(f"FMU not found: {self.fmu_path}")
@@ -87,7 +101,9 @@ class FmuEngine:
         by_name = {v.name: v for v in description.modelVariables}
 
         missing_inputs = sorted(FMU_INPUTS - set(by_name))
-        missing_outputs = sorted(set(REQUIRED_OUTPUTS) - set(by_name))
+        missing_outputs = sorted(
+            {self._fmu_name(k) for k in REQUIRED_OUTPUTS} - set(by_name)
+        )
 
         shape_problems: list[str] = []
 
@@ -101,19 +117,24 @@ class FmuEngine:
             if var.type != expected_type:
                 shape_problems.append(f"{name}: type is '{var.type}', expected {expected_type}")
 
-        for name in sorted(set(REQUIRED_OUTPUTS) & set(by_name)):
+        # Iterate the app's KEYS, not the FMU names: the expected type and unit are
+        # properties of the key, while the variable being inspected is the aliased
+        # FMU name. Checking _si_unit against the FMU name asks for the unit of
+        # e.g. "cond.M_tot", which has no mapping.
+        for key in sorted(k for k in REQUIRED_OUTPUTS if self._fmu_name(k) in by_name):
+            name = self._fmu_name(key)
             var = by_name[name]
             if var.causality not in ("output", "local", "calculatedParameter", "input", "parameter"):
                 shape_problems.append(
                     f"{name}: causality is '{var.causality}', expected output/input"
                 )
-            expected_type = "Boolean" if name == "txv_saturated" else "Real"
+            expected_type = "Boolean" if key == "txv_saturated" else "Real"
             if var.type != expected_type:
                 shape_problems.append(f"{name}: type is '{var.type}', expected {expected_type}")
             if var.variability == "constant":
                 shape_problems.append(f"{name}: variability is 'constant' — value cannot respond")
             declared_unit = getattr(var, "unit", None) or getattr(var, "declaredType", None)
-            expected_unit = _si_unit(name)
+            expected_unit = _si_unit(key)
             if (
                 declared_unit
                 and expected_unit not in ("1", "bool")
@@ -158,7 +179,7 @@ class FmuEngine:
             samples = simulate_fmu(
                 str(self.fmu_path),
                 start_values=start_values,
-                output=list(REQUIRED_OUTPUTS),
+                output=[self._fmu_name(k) for k in REQUIRED_OUTPUTS],
                 # 1.0 s was mid-transient and returned nonsense (Q_evap came back
                 # NEGATIVE). This loop needs ~340 s to settle at nominal and up to
                 # ~1100 s on a reduced-airflow perturbation; tests/test_scenarios.py
@@ -173,7 +194,7 @@ class FmuEngine:
         last = samples[-1]
         provenance = Provenance(SourceKind.FMU, f"Calculated by {self.fmu_path.name}.")
         quantities = {
-            key: Quantity(key, float(last[key]), _si_unit(key), provenance)
+            key: Quantity(key, float(last[self._fmu_name(key)]), _si_unit(key), provenance)
             for key in REQUIRED_OUTPUTS
         }
         result = EngineResult(
@@ -204,8 +225,10 @@ def _si_unit(key: str) -> str:
         return "kg/s"
     if key.startswith("Q_") or key == "W_comp_w":
         return "W"
-    if key in {"cop", "txv_opening_frac"}:
+    if key in {"cop", "txv_opening_frac", "txv_opening_cmd"}:
         return "1"
     if key == "txv_saturated":
         return "bool"
+    if key.endswith("_kg"):
+        return "kg"
     raise KeyError(f"No SI unit mapping for {key}")

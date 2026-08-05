@@ -48,12 +48,15 @@ DISPLAY_KEYS = (
     "Q_evap_w",
     "T_air_in_evap_k",
     "T_air_off_evap_k",
-    "txv_opening_frac",
+    "txv_opening_cmd",
     "W_comp_w",
     "T_cond_sat_k",
     "T_suction_k",
     "T_discharge_k",
     "T_liquid_k",
+    "M_charge_evap_kg",
+    "M_charge_cond_kg",
+    "M_charge_kg",
 )
 
 SOURCE_LABELS = {
@@ -68,10 +71,12 @@ SOURCE_LABELS = {
 def _precision(key: str) -> int:
     if "m_dot" in key:
         return 4
-    if key == "txv_opening_frac":
+    if key in {"txv_opening_frac", "txv_opening_cmd"}:
         return 0
     if key in {"Q_evap_w", "Q_cond_w", "W_comp_w"}:
         return 0
+    if key.endswith("_kg"):  # shown in grams; 0.1 g is well past what this resolves
+        return 1
     return 2
 
 
@@ -260,6 +265,11 @@ class Schematic(QWidget):
         self.selected_component = "evaporator"
         self.valve_states = {"liquid_line_solenoid": True, "hot_gas_solenoid": False}
         self._component_rects: dict[str, QRectF] = {}
+        # Nameplate charge is REFERENCE ONLY. It is never sent to the engine and
+        # never changes a result -- the model holds the two coils and nothing else,
+        # so this exists purely to show how much of the real charge is unaccounted
+        # for. Making it drive anything would be inventing physics the model lacks.
+        self.nameplate_charge_g = 100.0
         self.setMinimumHeight(650)
         self.setMouseTracking(True)
 
@@ -275,6 +285,22 @@ class Schematic(QWidget):
         # the effect of the change just made is visible without remembering it.
         self.previous = previous
         self.update()
+
+    def set_nameplate_charge_g(self, grams: float) -> None:
+        self.nameplate_charge_g = grams
+        self.update()
+
+    def unaccounted_charge_g(self) -> float:
+        """Nameplate charge minus what the coils actually hold, in grams.
+
+        This is the refrigerant sitting in volumes the model does not contain
+        (liquid line, filter-drier, compressor shell, oil). It is a bookkeeping
+        difference, not a computed inventory -- shrinking it needs those volumes
+        added to the model (M3), not a different sum here.
+        """
+        if not self.current or "M_charge_kg" not in self.current.quantities:
+            return self.nameplate_charge_g
+        return self.nameplate_charge_g - self.current.quantities["M_charge_kg"].value * 1000.0
 
     def set_conceptual_visible(self, visible: bool) -> None:
         self.show_conceptual = visible
@@ -402,7 +428,11 @@ class Schematic(QWidget):
             "header": (
                 "Suction header / charge",
                 [
-                    "System charge: awaiting nameplate value (g)",
+                    f"Nameplate system charge: {self.nameplate_charge_g:.0f} g (entered, not used in the solve)",
+                    f"Modelled — coils only: {shown('M_charge_kg')}"
+                    f"  (evap {shown('M_charge_evap_kg')} + cond {shown('M_charge_cond_kg')})",
+                    f"NOT modelled: {self.unaccounted_charge_g():.1f} g"
+                    " in liquid line, drier, compressor shell and oil",
                     f"Suction pressure: {shown('p_suction_pa')}",
                     f"Saturation temperature: {shown('T_evap_sat_k')}",
                     f"Actual line temperature: {shown('T_suction_k')}",
@@ -494,6 +524,9 @@ class Schematic(QWidget):
         structure = QColor("#344054")
         cooling_color = teal if liquid_open else inactive
         common_color = amber if hot_mode else teal
+        # Charge readings are inventory, not a flow path, so they get their own
+        # neutral colour rather than borrowing the cooling/hot-gas palette.
+        charge_color = QColor("#6941c6")
         shared_color = amber if hot_mode else teal
 
         tee_1 = point(0.17, 0.44)
@@ -612,16 +645,32 @@ class Schematic(QWidget):
         for start, end in internal_segments:
             self._draw_arrow(painter, start, end, common_color)
         q = self.current.quantities
-        painter.setPen(QColor("#344054"))
-        painter.drawText(QPointF(evaporator.left() + 14, circuit_1_y - 7), f"C1  SH {_format_quantity('superheat_circuit_k_1', q['superheat_circuit_k_1'])}")
-        painter.drawText(QPointF(evaporator.left() + 14, circuit_2_y - 7), f"C2  SH {_format_quantity('superheat_circuit_k_2', q['superheat_circuit_k_2'])}")
+        # Circuit superheats carry their own "was" line, same as every other reading
+        # on this diagram. Both lines are lifted a row so the dulled one lands at
+        # circuit_y - 7 -- clear of the circuit tube. Drawing the current value at
+        # -7 put the "was" line straight through the pipework.
+        circuit_text = QColor("#344054")
+        self._label(painter, evaporator.left() + 14, circuit_1_y - 20, f"C1  SH {_format_quantity('superheat_circuit_k_1', q['superheat_circuit_k_1'])}", circuit_text)
+        self._prev_label(painter, evaporator.left() + 14, circuit_1_y - 20, ("superheat_circuit_k_1",))
+        self._label(painter, evaporator.left() + 14, circuit_2_y - 20, f"C2  SH {_format_quantity('superheat_circuit_k_2', q['superheat_circuit_k_2'])}", circuit_text)
+        self._prev_label(painter, evaporator.left() + 14, circuit_2_y - 20, ("superheat_circuit_k_2",))
 
         painter.setPen(QColor("#7a4300"))
         painter.drawText(QRectF(check_point.x() - 48, check_point.y() - 31, 96, 22), Qt.AlignmentFlag.AlignCenter, "Check valve")
         self._label(painter, compressor.left(), compressor.bottom() + 19, f"{_format_quantity('p_discharge_pa', q['p_discharge_pa'])} discharge", common_color)
+        self._prev_label(painter, compressor.left(), compressor.bottom() + 19, ("p_discharge_pa",))
         self._label(painter, condenser.left(), condenser.bottom() + 19, f"Cond sat {_format_quantity('T_cond_sat_k', q['T_cond_sat_k'])}", cooling_color)
-        self._label(painter, txv.left(), txv.bottom() + 18, f"Open {q['txv_opening_frac'].value * 100:.0f}%", cooling_color)
-        self._prev_label(painter, txv.left(), txv.bottom() + 18, ("txv_opening_frac",))
+        self._prev_label(painter, condenser.left(), condenser.bottom() + 19, ("T_cond_sat_k",))
+        # Coil charge, per exchanger. The TOTAL is deliberately not drawn here: it is
+        # pinned by the startup condition and never moves, so on the diagram it would
+        # be another dead number. These two DO move -- refrigerant migrates between
+        # the coils -- which is the part that is worth watching.
+        self._label(painter, condenser.left(), condenser.bottom() + 45, f"Charge {_format_quantity('M_charge_cond_kg', q['M_charge_cond_kg'])} (coil)", charge_color)
+        self._prev_label(painter, condenser.left(), condenser.bottom() + 45, ("M_charge_cond_kg",))
+        self._label(painter, evaporator.left() + 14, evaporator.bottom() - 27, f"Charge {_format_quantity('M_charge_evap_kg', q['M_charge_evap_kg'])} (coil)", charge_color)
+        self._prev_label(painter, evaporator.left() + 14, evaporator.bottom() - 27, ("M_charge_evap_kg",))
+        self._label(painter, txv.left(), txv.bottom() + 18, f"Open {q['txv_opening_cmd'].value * 100:.0f}%", cooling_color)
+        self._prev_label(painter, txv.left(), txv.bottom() + 18, ("txv_opening_cmd",))
         self._label(painter, header.left(), header.bottom() + 18, f"{_format_quantity('p_suction_pa', q['p_suction_pa'])}  •  {_format_quantity('m_dot_kg_s', q['m_dot_kg_s'])}", common_color)
         self._prev_label(painter, header.left(), header.bottom() + 18, ("p_suction_pa", "m_dot_kg_s"))
 
@@ -769,11 +818,161 @@ def control_bounds(parameter: str) -> tuple[float, float]:
     return frac_to_display(parameter, spec["lo"]), frac_to_display(parameter, spec["hi"])
 
 
+class FieldReadings(QFrame):
+    """Enter what the gauges and thermometers read; get what they imply.
+
+    This panel does NOT run the model and does NOT feed it. It is pure R290
+    thermodynamics (twin/field_calc.py), so it answers instantly and nothing in
+    it is calibrated. That separation is deliberate: it is what lets the model's
+    prediction be compared against the readings honestly. Wiring the two together
+    would make agreement meaningless -- see HANDOFF.md on measured values being
+    fed back in as inputs.
+
+    Blank means blank. A field left empty is reported as unknown, never defaulted.
+    """
+
+    FIELDS = (
+        ("suction_psig", "Suction pressure", "psig", -10.0, 400.0, 1),
+        ("discharge_psig", "Discharge / liquid pressure", "psig", -10.0, 800.0, 1),
+        ("coil_outlet_f", "Evaporator coil outlet temp", "°F", -100.0, 300.0, 1),
+        ("compressor_inlet_f", "Compressor inlet (suction line) temp", "°F", -100.0, 300.0, 1),
+        ("discharge_temp_f", "Compressor discharge temp", "°F", -100.0, 500.0, 1),
+        ("liquid_line_f", "Liquid line temp (into TXV)", "°F", -100.0, 300.0, 1),
+    )
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.current: EngineResult | None = None
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        intro = QLabel(
+            "Type in what you measured. These are worked out from R290 property "
+            "tables — no simulation, nothing tuned. Tick a box to use that reading."
+        )
+        intro.setObjectName("secondaryText")
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        self.inputs: dict[str, tuple[QCheckBox, QDoubleSpinBox]] = {}
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(4)
+        for row, (key, label, unit, lo, hi, dp) in enumerate(self.FIELDS):
+            use = QCheckBox()
+            use.setToolTip("Untick to leave this reading blank.")
+            spin = QDoubleSpinBox()
+            spin.setRange(lo, hi)
+            spin.setDecimals(dp)
+            spin.setSingleStep(1.0)
+            name = QLabel(label)
+            name.setObjectName("bodyText")
+            units = QLabel(unit)
+            units.setObjectName("secondaryText")
+            grid.addWidget(use, row, 0)
+            grid.addWidget(name, row, 1)
+            grid.addWidget(spin, row, 2)
+            grid.addWidget(units, row, 3)
+            use.toggled.connect(spin.setEnabled)
+            use.toggled.connect(self._refresh)
+            spin.valueChanged.connect(self._refresh)
+            spin.setEnabled(False)
+            self.inputs[key] = (use, spin)
+        grid.setColumnStretch(1, 1)
+        layout.addLayout(grid)
+
+        self.output = QTextEdit()
+        self.output.setReadOnly(True)
+        self.output.setMinimumHeight(210)
+        layout.addWidget(self.output)
+        self._refresh()
+
+    def set_results(self, current: EngineResult | None) -> None:
+        """Give the panel the latest solve so it can show model beside measured."""
+        self.current = current
+        self._refresh()
+
+    def readings(self) -> dict[str, float | None]:
+        return {
+            key: (spin.value() if use.isChecked() else None)
+            for key, (use, spin) in self.inputs.items()
+        }
+
+    # Model quantity that corresponds to each thing the calculator derives, so the
+    # two can sit side by side. Anything absent here has no model counterpart.
+    MODEL_EQUIVALENT = {
+        "Evaporating temperature": "T_evap_sat_k",
+        "Condensing temperature": "T_cond_sat_k",
+        "Coil superheat": "superheat_circuit_k_1",
+        "Subcooling": "subcooling_k",
+    }
+
+    def _model_counterpart(self, label: str) -> float | None:
+        """The model's value for one derived quantity, in display units.
+
+        Superheat AT THE COMPRESSOR is not `superheat_mixed_k` -- that is measured
+        at the coil outlet, before the suction line. The model carries a suction
+        line (~82 W of gain), so the compressor-inlet figure has to be built from
+        the compressor inlet temperature and the saturation temperature, or the
+        comparison silently omits the line and looks like a 20 F model error.
+        """
+        if not self.current:
+            return None
+        q = self.current.quantities
+        if label == "Superheat at compressor":
+            if "T_suction_k" not in q or "T_evap_sat_k" not in q:
+                return None
+            return display_value("T_suction_k", q["T_suction_k"].value) - display_value(
+                "T_evap_sat_k", q["T_evap_sat_k"].value
+            )
+        key = self.MODEL_EQUIVALENT.get(label)
+        if key is None or key not in q:
+            return None
+        return display_value(key, q[key].value)
+
+    def _refresh(self) -> None:
+        from twin.field_calc import evaluate
+
+        entered = self.readings()
+        lines: list[str] = []
+        if not any(v is not None for v in entered.values()):
+            self.output.setPlainText(
+                "Nothing entered yet.\n\n"
+                "Tick a reading and type the value. Enter suction pressure alone and "
+                "you get the evaporating temperature; add the coil outlet temperature "
+                "and you get superheat."
+            )
+            return
+
+        for derived in evaluate(entered):
+            if derived.value is None:
+                continue
+            line = derived.formatted()
+            model = self._model_counterpart(derived.label)
+            if model is not None:
+                line += (
+                    f"\n      model predicts {model:.2f} — off by {model - derived.value:+.2f}"
+                )
+            lines.append(line)
+
+        missing = [d.label for d in evaluate(entered) if d.value is None]
+        text = "\n".join(lines)
+        if missing:
+            text += "\n\nNot computable yet: " + ", ".join(missing)
+        text += (
+            "\n\nThese come from R290 property tables and your readings only. "
+            "The model is not involved in producing them."
+        )
+        self.output.setPlainText(text)
+
+
 class ComponentControls(QFrame):
     """Direct equipment editor shown inside the process-diagram card."""
 
     inputChanged = pyqtSignal(str, float)
     calculateRequested = pyqtSignal()
+    clearHistoryRequested = pyqtSignal()
     valveChanged = pyqtSignal(str, bool)
 
     CONFIG = {
@@ -799,11 +998,17 @@ class ComponentControls(QFrame):
         "txv": (
             "Thermostatic expansion valve",
             (
-                ("Manual opening", "txv_opening_frac", 0, 0),
-                ("Installed valve size", "txv_size_frac", 0, 0),
-                ("Superheat setpoint", "superheat_target_k", 0, 0),
+                # A real TXV has ONE field adjustment: the preset stem, which sets
+                # spring force and therefore the static superheat it holds. Opening
+                # is an OUTCOME of that -- the valve modulates itself. "Manual
+                # opening %" was never a field concept and is no longer offered;
+                # the engine holds it at its calibrated 0.50. Valve size is a
+                # device selection, fixed for this unit.
+                ("TXV preset (superheat it holds)", "superheat_target_k", 0, 0),
             ),
-            "Opening, orifice size and the superheat the valve is set to hold.",
+            "The preset stem is the only field adjustment. Opening is an outcome — "
+            "the valve modulates itself to hold this superheat — and is shown on the "
+            "diagram as a reading, not a control. Valve size is fixed for this unit.",
         ),
         "evaporator": (
             "Evaporator",
@@ -937,8 +1142,17 @@ class ComponentControls(QFrame):
         self.calculate_button = QPushButton("Calculate")
         self.calculate_button.setDefault(True)
         self.calculate_button.clicked.connect(self.calculateRequested.emit)
+        # Reset clears the grey "was" history ONLY. It deliberately does not touch
+        # the inputs or re-solve -- "Restore All to Nominal" below the diagram is
+        # the control that puts the equipment back. Two different jobs, two buttons.
+        self.reset_button = QPushButton("Reset")
+        self.reset_button.setToolTip(
+            "Clear the grey previous readings. Inputs and current results are left alone."
+        )
+        self.reset_button.clicked.connect(self.clearHistoryRequested.emit)
 
         action_row.addWidget(self.pending_note, 1)
+        action_row.addWidget(self.reset_button)
         action_row.addWidget(self.calculate_button)
         layout.addLayout(action_row)
 
@@ -1177,6 +1391,7 @@ class MainWindow(QMainWindow):
         self.component_controls.inputChanged.connect(self._set_physical_input)
         self.component_controls.valveChanged.connect(self._set_valve_state)
         self.component_controls.calculateRequested.connect(self._recalculate)
+        self.component_controls.clearHistoryRequested.connect(self._clear_history)
         self.component_controls.sync_values(self.input_values)
         schematic_frame.layout().addWidget(self.component_controls)
 
@@ -1185,8 +1400,25 @@ class MainWindow(QMainWindow):
         reference.setObjectName("secondaryText")
         reset = QPushButton("Restore All to Nominal")
         reset.clicked.connect(self._reset)
+        # Nameplate charge: a REFERENCE figure, not an engine input. It never
+        # triggers a solve, because nothing downstream of it is simulated -- see
+        # Schematic.unaccounted_charge_g.
+        charge_label = QLabel("Nameplate charge (g):")
+        charge_label.setObjectName("secondaryText")
+        self.nameplate_charge_input = QDoubleSpinBox()
+        self.nameplate_charge_input.setRange(0.0, 5000.0)
+        self.nameplate_charge_input.setDecimals(0)
+        self.nameplate_charge_input.setSingleStep(5.0)
+        self.nameplate_charge_input.setValue(100.0)
+        self.nameplate_charge_input.setToolTip(
+            "Charge stamped on the unit. Reference only — the model contains the two "
+            "coils and nothing else, so it is never used in the calculation."
+        )
+        self.nameplate_charge_input.valueChanged.connect(self._set_nameplate_charge)
         reference_row.addWidget(reference)
         reference_row.addStretch()
+        reference_row.addWidget(charge_label)
+        reference_row.addWidget(self.nameplate_charge_input)
         reference_row.addWidget(reset)
         schematic_frame.layout().addLayout(reference_row)
 
@@ -1221,6 +1453,11 @@ class MainWindow(QMainWindow):
         assumptions.setWordWrap(True)
         self.assumptions_label = assumptions
         right.addWidget(self._framed("Shared assumptions", assumptions))
+
+        self.field_readings = FieldReadings()
+        right.addWidget(
+            self._framed("Field readings — what your gauges imply", self.field_readings)
+        )
 
         self.capabilities = QTextEdit()
         self.capabilities.setReadOnly(True)
@@ -1347,6 +1584,20 @@ class MainWindow(QMainWindow):
         finally:
             self.component_controls.set_done(datetime.now().strftime("%H:%M:%S"))
 
+    def _set_nameplate_charge(self, grams: float) -> None:
+        """Reference figure only -- deliberately does NOT re-solve."""
+        self.schematic.set_nameplate_charge_g(float(grams))
+
+    def _clear_history(self) -> None:
+        """Drop the grey 'was' readings so the next Calculate starts a fresh comparison.
+
+        Current values stay exactly as they are -- this clears the memory of the
+        previous solve, nothing else. Every subsequent Calculate resumes pushing the
+        outgoing reading down into grey.
+        """
+        self.previous = None
+        self._render()
+
     def _set_valve_state(self, component: str, is_open: bool) -> None:
         if component == "defrost_mode":
             self.valve_states["hot_gas_solenoid"] = is_open
@@ -1385,6 +1636,7 @@ class MainWindow(QMainWindow):
         self.schematic.set_results(self.current, self.baseline, self.previous)
         self.ph_plot.set_results(self.current, self.baseline)
         self.narration.setPlainText(airflow_narration(self.current))
+        self.field_readings.set_results(self.current)
         self.assumptions_label.setText("\n".join(f"• {item}" for item in self.current.assumptions))
         capability_lines = []
         for capability in self.current.capabilities:
