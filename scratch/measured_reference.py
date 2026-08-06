@@ -1,4 +1,23 @@
-"""Build the MEASURED calibration reference from the field logs.
+"""SUPERSEDED 2026-08-05 — DO NOT QUOTE THE NUMBERS THIS PRINTS.
+
+Use `scratch/trap_resolution.py` and `docs/TRAP_RESOLUTION.md` instead.
+
+Three reasons this script's OUTPUT is not trustworthy:
+
+  1. `COND_AIRFLOW_M3S = 0.076` below is the OLD fan-curve estimate. The measured value
+     is 0.1203 m3/s, derived from the condenser air-side energy balance.
+  2. It uses means, not medians, so it is sensitive to the excursions inside otherwise
+     steady windows (`Cond Inlet Temp` swings 36 F inside them).
+  3. Structurally, it derives `mdot` FROM `Q_cond` and then `Q_evap` FROM `mdot`, so
+     `Q_evap` and `Q_cond` are NOT independent measurements. That is what manufactured
+     the phantom "17 % energy balance gap" that cost a session to chase.
+
+IT IS KEPT, AND MUST KEEP WORKING, because `steady_windows`, `samples_in` and `col` are
+imported by the current scripts. Fix nothing here without checking those importers.
+
+----- original module docstring follows -----
+
+Build the MEASURED calibration reference from the field logs.
 
 Why this exists
 ---------------
@@ -55,21 +74,27 @@ def _parse(x):
     return dt.datetime.strptime(str(x).strip(), "%m/%d/%Y %H:%M:%S")
 
 
-def steady_windows() -> list[tuple[dt.datetime, dt.datetime]]:
+def steady_windows(dataset: str = "data 2.002", min_min: float = 9.0,
+                   box_band: float = 2.0) -> list[tuple[dt.datetime, dt.datetime]]:
+    """Steady windows for one dataset.  The workbook holds both runs, so the
+    dataset prefix must be applied -- otherwise 2.003 windows leak into a 2.002
+    analysis (harmless only because the timestamps happen not to overlap)."""
     wb = openpyxl.load_workbook(XLSX, data_only=True)
     rows = list(wb["Single_Unit_Steady_State"].iter_rows(values_only=True))
     idx = {str(n): k for k, n in enumerate(rows[0])}
     out = []
     for r in rows[1:]:
+        if not str(r[idx["Dataset"]]).startswith(dataset):
+            continue
         dur = r[idx["Duration_min"]]
         air_in = r[idx["Air_Into_Evap_F"]]
-        if dur and dur >= 9 and air_in is not None and -2 < air_in < 2:
+        if dur and dur >= min_min and air_in is not None and -box_band < air_in < box_band:
             out.append((_parse(r[idx["Start_Time"]]), _parse(r[idx["End_Time"]])))
     return out
 
 
-def samples_in(windows) -> list[dict]:
-    with open(RAW, encoding="utf-8-sig", errors="replace") as fh:
+def samples_in(windows, raw=None) -> list[dict]:
+    with open(raw or RAW, encoding="utf-8-sig", errors="replace") as fh:
         rd = csv.reader(fh)
         hdr = [h.strip() for h in next(rd)]
         out = []

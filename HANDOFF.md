@@ -1,9 +1,216 @@
-# HANDOFF — refrigeration trainer, state as of 2026-08-04 (end of session 2)
+# HANDOFF — refrigeration trainer, state as of 2026-08-06 (end of session 4)
 
 **Self-contained. You should not need the conversation this came from.**
 
 Read `ENGINEERING_DIRECTIVES.md` first — it outranks this file.
-Supersedes the older status blocks in `NEXT_STEPS.md`; those are kept as history.
+
+---
+
+## SESSION 4 (2026-08-06) — ALL 12 OPEN ISSUES CLOSED
+
+Worked `TASKS.md` issues 1-12. **Gate: 3/3 runs at 7/7** (was 6 scenario tests, now 7 —
+the gate got harder). **All 50 tests pass.**
+
+### The TXV is now a thermostatic element, and the gate test it broke was the thing wrong
+
+`txv_setpoint_lever` now defaults **true**. The operator's lever moves the SUPERHEAT
+SETPOINT — what a real adjustment screw does — instead of biasing the stroke.
+
+**Coil superheat 8.19 K -> 1.93 K against a measured 1.27 K.** Was +545 %, now +51.9 %.
+
+`test_more_mass_flow_raises_discharge_pressure` now drives `compressor_speed_frac=1.15`
+(+9.9 % mass flow) instead of the valve. **This was a claim correction, not a gate edit,
+and the user approved it explicitly on 2026-08-06** — at fixed displacement the compressor
+sets mass flow; a thermostatic valve only adjusts stroke to pass it (+0.8 % authority).
+Both assertions and both magnitudes are the originals. The valve gained its OWN test,
+`test_the_txv_holds_superheat_near_its_setpoint`, verified to FAIL under the legacy law
+(setpoint offset 6.92 K) and pass under the element (1.29 K). Full reasoning in
+`docs/VALIDATION.md`.
+
+### Model vs measured now
+
+| quantity | model | measured band | verdict |
+|---|---|---|---|
+| Q_evap | 712 W | 610 - 891 W | **IN** |
+| mass flow | 2.90 g/s | 2.11 - 3.08 g/s | **IN** |
+| Q_cond | -1270 W | -1428 .. -1147 W | **IN** |
+| COP | 1.55 | 1.14 - 1.66 | **IN** |
+| air off condenser | 110.6 F | 110.3 - 111.1 F | **IN** |
+| subcooling | 8.79 K | 8.89 K | -1.1 % |
+| T_cond | 46.65 C | 44.73 C | +4.3 % |
+| coil superheat | 1.93 K | 1.27 K | +51.9 % |
+| T_evap | -27.69 C | -24.17 .. -23.59 C | -14.6 % |
+| air off evaporator | -7.09 F | -8.33 .. -8.15 F | +13.0 % |
+
+Held-out extrapolation (`data 2.003`, `T_amb_k` 315.87, nothing retuned): `T_cond`
++3.2 %, condenser air-off **IN band**, Q_evap/Q_cond/COP all IN. No regression.
+
+### THE FINDING THAT MATTERS MOST — superheat was a PRECONDITION, not the whole defect
+
+The "one defect, three symptoms" hypothesis is **false as stated** and the prediction
+scoring says so: superheat closed, `T_evap` and effectiveness did not follow. But:
+
+| `UA_evap_nom_w_k` | 132.8 | 265.6 | 531.2 | 2000 |
+|---|---|---|---|---|
+| effectiveness | 0.397 | 0.522 | 0.616 | 0.694 |
+| `T_evap` (C) | -27.69 | -26.06 | -25.16 | -24.55 |
+
+**With the element on, evaporator UA is no longer inert.** Under the legacy law the same
+sweep saturated at 0.439. The superheated zone was MASKING the air side. Ordering matters:
+superheat first, then conductance.
+
+**UA was deliberately NOT re-tuned.** Implied UA asymptotes near 214 W/K even at 15x
+air-side conductance, while the measured effectiveness of 0.798 implies ~289 W/K. Air side
+alone cannot reach it, so a **series resistance** is binding, and fitting a 4-6x rise into
+a parameter section 5 already calls "soft" would hide it — the `k_v = 0.0588` mistake.
+
+**NEXT SESSION START HERE.** ThermoCycle scales every refrigerant-side coefficient as
+`U = Unom*(M_dot/Mdotnom)^0.8`. With `mdot_nom = 0.006` against an actual 0.0029 kg/s,
+**all refrigerant-side coefficients run at 56 % of nominal** — and `mdot_nom` is 0.006
+only because 0.004 and 0.00306 will not integrate. A numerical limit is standing in for a
+physical one. Untested. See `docs/PHYSICS_NOTES.md`.
+
+### A real defect found while checking the banner
+
+`app.py` built `FmuEngine(nominal_condenser_airflow_m3_s=0.076)` and `engine_fmu`
+multiplies that by `condenser_airflow_frac`, so **the application had been solving at the
+old fan-curve 0.076 m3/s while the calibrated value is 0.1203** — every number the trainer
+displayed was off the calibration point. Fixed. Two stale display constants (3000 RPM,
+161 CFM) were corrected alongside.
+
+### Other closures
+
+- **UI no longer freezes.** `_SolveWorker(QThread)` runs the ~8 s solve off the UI thread,
+  with a re-entrancy guard and clean shutdown. Two new tests assert the solve runs on a
+  different thread and that a second Calculate is refused while one is in flight.
+- **Demo banner is now CONDITIONAL on `engine_is_fmu`, not deleted.** With the FMU live it
+  is hidden; on fallback to the demo engine it still appears, because the defects it warns
+  about are then genuinely on screen. The `ILLUSTRATIVE DEMO` badge and R290 safety text
+  stay in both cases.
+- `res_mass_kg_s` renamed **`sum_mass_flow_kg_s`** — it is a sum (2*mdot), never a
+  residual. Renamed in both models so the "byte-identical apart from the compressor"
+  claim on `ClosedLoopM1e.mo` stays true.
+- `scratch/measured_reference.py` marked SUPERSEDED; `measured_targets.json` verified
+  byte-identical afterwards.
+
+### Scored predictions
+
+| prediction | result |
+|---|---|
+| gain 0.5 puts superheat in 1.6-1.9 K | **near miss** — 1.93 K |
+| gain 0.5 lifts `T_evap` above -27.0 C | **FAILED** — -27.69 C |
+| gain 0.5 lifts effectiveness above 0.50 | **FAILED** — 0.397 |
+| moving the lever to the setpoint restores authority | **CONFIRMED** for superheat control; mass-flow authority stays ~0, which is correct TXV physics |
+
+### One operational note
+
+A `gate.sh --repeat 3` returned 0/3 once, from the staleness guard firing because the
+freshly built FMU had not landed before pytest started. **The guard behaved correctly** —
+it refused to report a result rather than testing a stale artifact. Re-running gave 3/3.
+If you see 0/3 with a `STALE FMU` message, re-run before believing it.
+
+---
+
+## SESSION 3 (2026-08-05) — READ THIS BEFORE THE REST OF THE FILE
+
+Session 3 worked `TASKS.md` (T1-T12). **The numbers in sections 1-3 below are session 2's
+and several are now superseded.** What changed:
+
+### All four "traps" are resolved, and two of them dissolved rather than resolving
+
+Full working: **`docs/TRAP_RESOLUTION.md`**. Reproduce with
+`python scratch/trap_resolution.py` and `python scratch/trap_resolution.py "data 2.003"`.
+
+1. **The third trap (impossible 0.71 K condenser approach) is WITHDRAWN.** Its premise —
+   that air cannot leave near the condensing temperature — assumed the whole coil sits at
+   `T_cond`. It does not: 31-47 % of the duty is DESUPERHEATING from gas at 108-163 C,
+   and in a counter-flow coil the air exits at exactly that end. No sensor contradicts the
+   transducer (condenser outlet 40.62 C is properly below Tsat 44.73 C), and the model
+   itself reaches a 2.8 K approach with finite UA. **`T_cond` = 44.82 C is a VALID target
+   and the discharge transducer is cleared.** The old advice to work back from a "normal
+   5-8 K approach" would have put `T_cond` at 49-52 C and been 5 K wrong.
+
+2. **The fourth trap (17 % energy gap) DISSOLVED.** The old reference derived `mdot` from
+   `Q_cond` and then `Q_evap` from `mdot`, so those were never independent measurements —
+   the "gap" was really the wattmeter disagreeing with ONE strap-on thermocouple
+   (`Cond Inlet Temp`), which implies 85.7 kJ/kg of compressor work, below the isentropic
+   floor and therefore impossible. Anchoring instead on the evaporator air side (the only
+   route independent of every transducer) and carrying the L/R probe disagreement as an
+   interval, **the balance closes at the calibrated 0.1203 m3/s on both datasets.**
+
+3. **Every measured target is now a BAND, not a point** (`docs/measured_targets.json`).
+   The duplicated probes disagree by up to 46 %: `Q_evap` is **610-891 W**, not 776 W.
+   The old point targets silently used the Left sensor of each pair.
+
+4. **Held-out validation.** `data 2.003.csv` (never used for calibration, a hotter
+   operating point) reproduces every sensor pathology: suction transducer 3.8 K high,
+   0.69 K condenser approach, liquid-line loss, `Cond Inlet Temp` below the isentropic
+   floor. These are instrument bias, not window-selection artifacts.
+
+### Model vs measured, corrected (`python scratch/compare_to_measured.py`)
+
+| quantity | model | measured band | verdict |
+|---|---|---|---|
+| Q_evap | 691 W | 610 - 891 W | **IN** |
+| mass flow | 2.72 g/s | 2.11 - 3.08 g/s | **IN** |
+| Q_cond | -1224 W | -1428 .. -1147 W | **IN** |
+| COP | 1.55 | 1.14 - 1.66 | **IN** |
+| subcooling | 8.70 K | 8.89 K | -2.1 % |
+| air off condenser | 110.0 F | 110.3 - 111.1 F | -0.3 % |
+| T_cond | 46.29 C | 44.73 C | +3.5 % |
+| T_evap | -28.58 C | -24.17 .. -23.59 C | **-18.2 %** |
+| air off evaporator | -6.88 F | -8.33 .. -8.15 F | **+15.6 %** |
+| coil superheat | 8.19 K | 1.27 K | **+545 %** |
+
+**Capacity is converged to within instrument resolution. Do not spend gate cycles on it.**
+
+### THE REMAINING ERROR IS ONE DEFECT WITH THREE SYMPTOMS
+
+Superheat, `T_evap` and evaporator air-off are the same problem: the model's evaporator
+carries too large a SUPERHEATED zone, where `Unom_v` = 300 against `Unom_tp` = 2000. That
+caps air-side effectiveness at **0.377 against a measured 0.798** and forces the coil to
+run 4.4 K colder to move the same heat. The real coil is nearly flooded at 1.27 K.
+
+**It is not air-side UA.** Re-swept after the counterflow fix (the one lever section 2
+said was worth re-testing): `UA_evap_nom_w_k` 132.8 -> 300 moves effectiveness only
+0.377 -> 0.439, then saturates. Same insensitivity signature as the co-current defect.
+`UA_evap_nom_w_k` is `Evaluate=false`, so it sweeps via `start_values` with NO rebuild.
+
+### Two structural defects found and one fixed
+
+- **FIXED: `CoilAirSide`'s per-cell law was an unbounded central difference.** At
+  NTU_cell > 2 the factor `(1-NTU/2)/(1+NTU/2)` goes NEGATIVE — the air overshoots past
+  the wall and oscillates. Measured: **effectiveness 1.84 at 100x UA**, and the condenser
+  flips oscillatory at only 2x. Replaced with the exact exponential form
+  `Q = C_air*(T_air - T_wall)*(1 - exp(-UA_cell/C_air))`, which is unconditionally
+  bounded. Agreement at the calibrated point 0.1-0.2 %, so this is robustness, not
+  recalibration. **Note what this meant: the UA-sweep diagnostic that caught the
+  co-current bug was itself structurally broken.**
+- **OPEN, NEEDS YOU: the TXV.** Details in section 8.
+
+### New permanent protection
+
+- `tests/test_physics_invariants.py` — 14 checks that bound EFFECTIVENESS and DIRECTION,
+  not just totals. Both structural defects above were invisible to `res_energy_w`, which
+  read 0.00 W throughout, because a bounded transfer loses no energy. All pass.
+- `tests/test_calibration_provenance.py` — a calibrated parameter cannot change value
+  without its source entry changing too. Stops a silent `k_v = 0.0588` recurrence.
+- `bash ./gate.sh --repeat 3` — repeatability in one command and one line, instead of
+  three commands and a wall of output.
+
+**Gate: 6/6, and `--repeat 3` gives 3/3.** Also 14/14 invariants and 4/4 provenance.
+
+### Scored predictions (section 7.6 discipline)
+
+| prediction | result |
+|---|---|
+| raising condenser outlet start enthalpy cuts subcooling ~4.6 K | **FAILED** — 0.37 K. Wrong endpoint: outlet is liquid, where density barely varies with h |
+| N=10 resolves the thin subcooled zone and LOWERS subcooling | **FAILED** — raised it 8.33 -> 9.64 K |
+| the model's subcooling should be compared to 4.11 K, not 8.98 K | **FAILED, and self-corrected** — the model's condenser outlet lands on the measured TXV inlet within 0.4 K. See `docs/TRAP_RESOLUTION.md` |
+| moving the operator's lever to the setpoint restores valve authority | **FAILED** — authority rose from ~0 to +0.8 %, still short of the +5 % the test demands |
+
+Four predictions, four failures — but each one killed a hypothesis, and the third and
+fourth are the two most useful findings of the session.
 
 ---
 
@@ -461,5 +668,14 @@ remaining error lives.
   Nothing in the existing data can separate them.
 - **Where the two condenser inlet probes are physically mounted.** They disagree by
   6.3 F. The 255 CFM figure depends on which one represents true entering air.
-- **Which of `Q_evap`, `Q_cond` or `Unit Watts` is wrong** (fourth trap). Until this is
-  settled, the SIGN of the remaining capacity error is unknown.
+- ~~**Which of `Q_evap`, `Q_cond` or `Unit Watts` is wrong** (fourth trap).~~
+  **RESOLVED 2026-08-05** — none of them. See the session 3 block at the top.
+- ~~**A trustworthy head pressure.**~~ **NO LONGER BLOCKING 2026-08-05** — the third trap
+  was withdrawn on its own premise; `T_cond` is a valid target. Still worth having.
+
+### ~~THE ONE DECISION THAT NEEDS YOU — the TXV~~ **RESOLVED 2026-08-06**
+
+The user chose to model the TXV faithfully and correct the test whose claim was wrong.
+Done: `txv_setpoint_lever` defaults true, the authority test drives
+`compressor_speed_frac=1.15`, and the valve gained its own superheat test. See the
+session-4 block at the top of this file and `docs/VALIDATION.md`.

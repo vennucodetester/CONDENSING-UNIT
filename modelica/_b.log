@@ -8,15 +8,17 @@ true
 true
 true
 true
+true
+true
 "[C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/vendor/ThermoCycle-library/ThermoCycle/Components/HeatFlow/HeatTransfer/SinglePhaseCorrelations/DittusBoelter1930.mo:50:31-50:250:writable] Warning: Lexer treating \\ as \\\\, since \\< is not a valid Modelica escape sequence.
 Warning: ThermoCycle requested package Modelica of version 3.2.1. Modelica 4.1.0 is used instead which states that it is only compatible with a conversion script. Use convertPackageToLibrary(ThermoCycle, Modelica, \"4.1.0\") to run the conversion script or proceed with potential issues as a result.
 "
 "Check of RefrigerationTrainer.ClosedLoopM1eCS completed successfully.
-Class RefrigerationTrainer.ClosedLoopM1eCS has 1176 equation(s) and 1176 variable(s).
-632 of these are trivial equation(s)."
+Class RefrigerationTrainer.ClosedLoopM1eCS has 1193 equation(s) and 1193 variable(s).
+642 of these are trivial equation(s)."
 @@CHK=Check of RefrigerationTrainer.ClosedLoopM1eCS completed successfully.
-Class RefrigerationTrainer.ClosedLoopM1eCS has 1176 equation(s) and 1176 variable(s).
-632 of these are trivial equation(s).@@
+Class RefrigerationTrainer.ClosedLoopM1eCS has 1193 equation(s) and 1193 variable(s).
+642 of these are trivial equation(s).@@
 
 "C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/ClosedLoopM1eCS.fmu"
 @@FMU=C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/ClosedLoopM1eCS.fmu@@

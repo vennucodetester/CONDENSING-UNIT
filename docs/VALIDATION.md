@@ -115,3 +115,76 @@ before any experiment is marked validated. Specifically it must:
 **A direction check is not sufficient.** D2 shows a response can move the expected way
 and still rest on impossible numbers. Every validation must test energy consistency as
 well as direction.
+
+---
+
+# VALIDATION STATE 2026-08-06 — the app now runs validated FMU physics
+
+This section is what `app.py::_build_defect_banner` refers to when it says the banner
+comes off "only when `docs/VALIDATION.md` records the defects as fixed and the
+expected-fail tests in `tests/test_scenarios.py` pass"
+(`ENGINEERING_DIRECTIVES` 2.1).
+
+## The three conditions, checked
+
+| condition | state |
+|---|---|
+| `bash ./gate.sh --repeat 3` | **3/3 runs at 7/7**, in separate processes |
+| expected-fail markers in `tests/test_scenarios.py` | **none remain** (the only `skip` is FMU-missing logic) |
+| defect state recorded here | **this section** |
+
+## The demo-engine defects D1-D4 no longer reach the screen
+
+D1-D4 are defects of `twin/demo_engine.py`. The application now constructs `FmuEngine`
+and only falls back to `DemoAirflowEngine` if the FMU cannot be loaded
+(`app.py`, `engine_is_fmu`). So the banner is now **conditional on that flag** rather
+than removed: with the FMU live it is hidden; on fallback to the demo engine it still
+appears, because the defects it warns about are then genuinely on screen.
+
+Deleting it outright would have been wrong — the fallback path still shows known-bad
+physics.
+
+## What is validated, and what is not
+
+Validated against measurement (`docs/TRAP_RESOLUTION.md`, both datasets):
+
+- Capacity, mass flow, `Q_cond` and COP all lie **inside** the measured bands.
+- Subcooling -2.1 %, condenser air-off -0.3 %, `T_cond` +3.5 %.
+- **Extrapolation:** at a held-out operating point 7 K hotter (`data 2.003.csv`,
+  `T_amb_k` 315.87), with nothing retuned, `T_cond` +2.7 % and condenser air-off -0.1 %.
+
+**Still wrong, and not hidden by removing the banner** — the `ILLUSTRATIVE DEMO` status
+badge and the R290 safety text are deliberately KEPT:
+
+- Evaporator air-side effectiveness ~0.40 against a measured 0.798.
+- `T_evap` ~3.5 K colder than measured.
+- Single-circuit model; the machine has a 4.2 F split between its two circuits.
+- Charge inventory is coils-only.
+
+## Test change recorded: `test_more_mass_flow_raises_discharge_pressure`
+
+**This was a claim correction, NOT a gate edit**, made 2026-08-06 with the user's
+explicit approval. `ENGINEERING_DIRECTIVES` 2.3 forbids editing a test to make it pass;
+`HANDOFF.md` 7.7 states the other branch of the same rule — *if an assertion fails, the
+physics or the claim is wrong, so fix one of those*. Here the claim was wrong:
+
+- The test drove `txv_opening_frac` and required +5 % mass flow. At fixed displacement
+  and speed the **compressor** sets mass flow; a thermostatic valve only adjusts its
+  stroke to pass it. Measured authority via the valve: **+0.8 %**.
+- The lever moved to `compressor_speed_frac=1.15` (**+9.9 %** mass flow, head +1.6 %).
+  **Both assertions and both magnitudes are the originals.** Nothing was relaxed.
+- The valve did not lose coverage: `test_the_txv_holds_superheat_near_its_setpoint` was
+  added for its real authority. It **fails under the legacy law** (setpoint offset
+  6.92 K) and passes under the thermostatic element (1.29 K) — verified, so it is a
+  genuine discriminator rather than a test that passes either way.
+
+Net effect on the gate: **6 scenario tests became 7**. It got harder, not easier.
+
+## Defect fixed while checking this: the app ran an uncalibrated condenser airflow
+
+`app.py` constructed `FmuEngine(nominal_condenser_airflow_m3_s=0.076)`, and
+`twin/engine_fmu.py` multiplies that nominal by `condenser_airflow_frac`. So at the
+default `frac = 1.0` the application solved at **0.076 m3/s** while the calibrated and
+measured value is **0.1203 m3/s** (`HANDOFF.md` section 5). Every number the trainer
+displayed was therefore off the calibration point — unlike the stale display constants
+in `CONTROL_UNITS`, this one really did feed the FMU. Corrected to 0.1203.

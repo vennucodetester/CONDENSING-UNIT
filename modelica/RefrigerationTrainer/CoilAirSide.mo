@@ -58,6 +58,8 @@ model CoilAirSide
   ThermoCycle.Interfaces.HeatTransfer.ThermalPort port(N = N);
 
   Real UA_cell;
+  Real C_air "air stream capacity rate m_dot*cp [W/K]";
+  Real eff_cell "per-cell air-side effectiveness 1 - exp(-NTU_cell), in (0,1)";
   Real Q_cell[N] "heat air->wall per cell [W], positive when air is warmer";
   final parameter Real A_cell = A_tot / N "Per-cell area (m2)";
   Real T_air[N+1];
@@ -66,6 +68,31 @@ equation
   m_dot_air = max(0.01, V_dot_air_m3_s * rho_air);
   UA_air_tot = UA_air_nom * ((max(0.01, V_dot_air_m3_s) / V_dot_air_nom)^2 + 1e-6)^0.4;
   UA_cell = UA_air_tot / N;
+  C_air = m_dot_air * cp_air;
+
+  /* CHANGED 2026-08-05 — the per-cell law was a CENTRAL (mean-temperature) difference,
+       Q = UA_cell*(0.5*(T_air[i] + T_air[i+1]) - T_wall),
+     which is UNBOUNDED. Solving it for the outlet gives
+       T_air[i+1] = T_wall + (T_air[i] - T_wall) * (1 - NTU/2)/(1 + NTU/2),
+     and that factor goes NEGATIVE for NTU_cell > 2: the air overshoots past the wall
+     temperature and then oscillates cell to cell. Measured on the built model:
+       evaporator, nominal   NTU_cell 0.18  ->  effectiveness 0.5901 (harmless)
+       condenser,  nominal   NTU_cell 1.15  ->  effectiveness 0.9985 (close to the edge)
+       condenser,  UA x2     NTU_cell 2.29  ->  per-cell factor -0.067, OSCILLATORY
+       condenser,  UA x100   NTU_cell 114   ->  effectiveness 1.8397  <-- 84 % PAST the wall
+     This is the same class of defect as the co-current bug below: a structural bound
+     (here, the lack of one) that no conservation check can see, because energy is still
+     conserved while the air is driven to an impossible temperature. It also silently
+     invalidates any UA sweep, which is exactly the diagnostic that caught the co-current
+     defect — so the tool used to find structural errors was itself structurally broken.
+
+     Replaced with the exponential form, which is the EXACT solution of the cell ODE for
+     a constant wall temperature, is unconditionally bounded (T_air[i+1] always lies
+     between T_air[i] and T_wall), and is monotone in UA:
+       Q = C_air * (T_air[i] - T_wall) * (1 - exp(-UA_cell/C_air))
+     At the calibrated operating point the two agree to 0.1 % (evaporator) and 0.2 %
+     (condenser), so this is a robustness fix, not a recalibration. */
+  eff_cell = 1.0 - exp(-UA_cell / C_air);
 
   T_air[1] = T_air_in_k;
 
@@ -76,9 +103,9 @@ equation
        Q_cell is heat from AIR into the WALL, i.e. OUT of the coil, hence the minus.
        Getting this backwards made the evaporator heat the box (air out 284.1 K from
        278.15 K in) and the condenser absorb 13.7 kW (air out 454 K). Fixed 2026-08-03. */
-    Q_cell[i] = UA_cell * (0.5 * (T_air[i] + T_air[i+1]) - port.T[if counterflow then N + 1 - i else i]);
+    Q_cell[i] = C_air * eff_cell * (T_air[i] - port.T[if counterflow then N + 1 - i else i]);
     port.phi[if counterflow then N + 1 - i else i] = -Q_cell[i] / A_cell;
-    m_dot_air * cp_air * (T_air[i] - T_air[i+1]) = Q_cell[i];
+    C_air * (T_air[i] - T_air[i+1]) = Q_cell[i];
   end for;
 
   T_air_off_k = T_air[N+1];

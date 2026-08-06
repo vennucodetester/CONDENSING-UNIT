@@ -32,7 +32,11 @@ class UiWorkflowTest(unittest.TestCase):
         self.window._set_physical_input("airflow_frac", 0.65)
         self.assertTrue(self.window.component_controls.pending_note.text(),
                         "changing an input must flag that results are stale")
+        # ASYNC SINCE 2026-08-06: _recalculate starts a worker thread (issue 9 of
+        # TASKS.md) instead of freezing the UI for ~8 s, so the test waits for it.
+        # No assertion changed -- only the wait was added.
         self.window._recalculate()
+        self.window.wait_for_solve()
         self.assertEqual(self.window.current.inputs.airflow_frac, 0.65)
         self.assertLess(self.window.current.quantities["Q_evap_w"].value, nominal_capacity)
 
@@ -78,6 +82,50 @@ class UiWorkflowTest(unittest.TestCase):
         self.assertIn("hot_gas_solenoid", self.window.component_controls.CONFIG)
         self.assertNotIn("suction_stop_solenoid", self.window.component_controls.CONFIG)
 
+
+    def test_solve_runs_off_the_ui_thread_and_delivers_its_result(self):
+        """Issue 9 of TASKS.md: the ~8 s solve must not block the event loop.
+
+        Asserts the real property -- that the work happens on a DIFFERENT thread and the
+        result still lands. A test that only checked the result would pass with the old
+        blocking implementation and prove nothing.
+        """
+        from PyQt6.QtCore import QThread
+
+        ui_thread = QThread.currentThread()
+        seen = {}
+        original = self.window.engine.run
+
+        def spy(inputs):
+            seen["thread"] = QThread.currentThread()
+            return original(inputs)
+
+        self.window.engine.run = spy
+        try:
+            self.window._set_physical_input("airflow_frac", 0.72)
+            self.assertTrue(self.window._start_solve(), "solve should have started")
+            self.assertTrue(self.window.wait_for_solve(), "solve did not finish")
+        finally:
+            self.window.engine.run = original
+
+        self.assertIn("thread", seen, "the engine never ran")
+        self.assertIsNot(seen["thread"], ui_thread,
+                         "the solve ran on the UI thread - it would freeze the window")
+        self.assertEqual(self.window.current.inputs.airflow_frac, 0.72,
+                         "the worker's result never reached the UI")
+
+    def test_a_second_calculate_cannot_start_while_one_is_running(self):
+        """Re-entrancy guard. Two solves racing over the same state would be a worse
+        bug than the freeze the worker thread replaced."""
+        self.window._set_physical_input("airflow_frac", 0.68)
+        self.assertTrue(self.window._start_solve(), "first solve should start")
+        self.assertFalse(self.window._start_solve(),
+                         "a second solve must be refused while one is in flight")
+        self.assertFalse(self.window.component_controls.calculate_button.isEnabled(),
+                         "Calculate must be disabled while solving")
+        self.assertTrue(self.window.wait_for_solve())
+        self.assertTrue(self.window.component_controls.calculate_button.isEnabled(),
+                        "Calculate must come back after the solve finishes")
 
 if __name__ == "__main__":
     unittest.main()

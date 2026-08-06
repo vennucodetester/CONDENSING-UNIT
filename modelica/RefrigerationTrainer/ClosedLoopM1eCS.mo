@@ -348,7 +348,14 @@ model ClosedLoopM1eCS
      Each is a separately-reported error term. Do NOT collapse them into a
      single objective - the whole purpose is to see WHICH one misbehaves. */
 
-  output Real res_mass_kg_s(unit="kg/s")
+  /* RENAMED 2026-08-06, was `res_mass_kg_s`. It is a SUM, not a residual: both
+     comp.InFlow.m_flow and txv.InFlow.m_flow are positive under ThermoCycle's sign
+     convention, so at a converged steady state this equals 2*mdot and NEVER approaches
+     zero. The old name invited exactly the wrong assertion, and a test asserting it was
+     near zero would have failed on a perfectly healthy model. What it genuinely proves
+     is that the two component flows AGREE. Renamed rather than redefined so that no
+     existing consumer silently changes meaning. */
+  output Real sum_mass_flow_kg_s(unit="kg/s")
     "mass residual: compressor flow minus TXV flow. Zero at closure.";
   output Real res_energy_w(unit="W")
     "energy residual: Q_evap + W_comp - Q_cond_rejected. Zero at closure.";
@@ -404,6 +411,12 @@ model ClosedLoopM1eCS
      NB the proportional law leaves a steady-state offset (Kp = 0.05/K), so settled
      superheat will land ABOVE 1.27 K; the target is not the prediction. */
   parameter Real superheat_target_k             = 1.27    "TXV superheat setpoint [K] - MEASURED coil-outlet value" annotation(Evaluate=false);
+  /* ADDED 2026-08-05 with the thermostatic-element rewrite at the end of this file. */
+  parameter Real txv_gain_per_k                 = 0.50    "TXV stroke per K of superheat error [1/K]. 2x the property-derived 0.25; see the sweep in docs/PHYSICS_NOTES.md" annotation(Evaluate=false);
+  parameter Real txv_screw_span_k               = 6.0     "Superheat setpoint span across the full screw travel [K]. Sets the operator's authority" annotation(Evaluate=false);
+  parameter Boolean txv_setpoint_lever          = true    "false = legacy additive-opening law (gate-green). true = thermostatic element whose screw moves the SETPOINT - better physics, fails the valve-authority test. See the block at the end of this file" annotation(Evaluate=false);
+  parameter Real txv_stroke_ref                 = 0.50    "Stroke at zero superheat error - the element's mid-position" annotation(Evaluate=false);
+  output Real superheat_set_k "Superheat the element is demanding, after the screw setting [K]";
 
 initial equation
   txv_opening_cmd = txv_opening_frac;
@@ -447,7 +460,78 @@ equation
      driving the coil to 1.27 K also feeds the compressor near-saturated vapour --
      which is not what the real compressor sees. Raising Kp cannot fix that; adding
      the suction line can. Do not re-tune this gain until it exists. */
-  tau_txv * der(txv_opening_cmd) + txv_opening_cmd = max(0.05, min(1.0, txv_opening_frac + 0.04 * (superheat_k - superheat_target_k)));
+  /* REPLACED 2026-08-05 — THE OPERATOR'S LEVER WAS ATTACHED TO THE WRONG PLACE.
+
+     The old law was  opening = clamp(txv_opening_frac + Kp*(SH - SH_target)),  i.e. the
+     operator's command was an ADDITIVE BIAS ON THE OPENING, summed with the feedback.
+     Closed-loop authority is then  d(opening)/d(frac) = 1 + Kp*dSH/dfrac, and because
+     dSH/dfrac is negative, raising Kp cancels the operator's own command. That is the
+     documented deadlock: Kp 0.10 and 0.20 both reproduce the measured superheat and both
+     fail test_more_mass_flow_raises_discharge_pressure, while Kp 0.04 keeps authority
+     and leaves the coil at 8.2 K against a measured 1.27 K.
+
+     The deadlock is an artifact of the parameterisation, not of TXV physics. Writing the
+     real force balance does NOT escape it:
+       opening ~ (P_bulb - P_evap - P_spring)/dP_band
+               = (Psat(T_out) - Psat(T_evap) - P_spring)/dP_band
+               ~ (dPsat/dT)*(SH - SH_static)/dP_band
+     which is the SAME proportional law, with the gain pinned by property data. For
+     propane near -24 C, dPsat/dT = 8.7 kPa/K, and a real element takes ~4 K of superheat
+     to go from static to full stroke, so dP_band ~ 35 kPa and the PHYSICAL gain is
+     ~0.25 /K -- five times the largest gain that survives the authority test. A faithful
+     bulb model therefore fails that test HARDER, and a near-integral element (the obvious
+     way to hold 1.27 K) has ZERO static authority by construction. The gain was never the
+     free variable.
+
+     What is wrong is the lever. On a real thermostatic valve the technician turns the
+     SUPERHEAT ADJUSTMENT SCREW, which changes the spring preload -- that is, the
+     SETPOINT. It does not add an offset to the stroke. Moving txv_opening_frac onto the
+     setpoint makes the operator's authority
+       d(SH_set)/d(frac) = -txv_screw_span_k
+     which is a CONSTANT, independent of Kp. Opening the valve lowers the demanded
+     superheat, the element floods the coil further, mass flow and head pressure rise.
+     Authority and tight superheat control stop competing, so the physical gain becomes
+     admissible and the coil can sit where the machine's does.
+
+     Direction check: frac 0.50 is the nominal screw position and reproduces
+     superheat_target_k; frac -> 1 lowers the setpoint (valve "opened"), frac -> 0 raises
+     it. SH_set is floored at 0.5 K -- a real element cannot demand saturated vapour.
+     MEASURED RESULT, AND WHY IT IS DEFAULTED OFF (2026-08-05).
+     The rewrite works as physics and is a large improvement on the headline error:
+         coil superheat  8.19 K -> 2.56 K  (measured 1.27 K)
+         mass flow       2.72   -> 2.88 g/s (measured band 2.11 - 3.08)
+     but it returns 5/6, failing test_more_mass_flow_raises_discharge_pressure, and the
+     reason is not a tuning miss. Sweeping the screw from frac 0.50 to 0.75:
+         span 2 K:  SH 2.56 -> 2.08 K, stroke 0.824 -> 0.828, mdot 2.883 -> 2.898 g/s
+         span 6 K:  SH 2.56 -> 1.82 K, stroke 0.824 -> 0.830, mdot 2.883 -> 2.907 g/s
+     i.e. +0.8 % of mass flow where the test requires +5 %. Widening the span does not
+     help, because the limit is not the element:
+
+       AT FIXED COMPRESSOR DISPLACEMENT AND SPEED, THE COMPRESSOR SETS THE MASS FLOW
+       (mdot = rho_suction * V_s * N * eps_v). A thermostatic valve does not choose the
+       flow; it adjusts its stroke to PASS the flow the compressor demands, and holds
+       superheat while doing so. Opening it can only raise mass flow through suction
+       DENSITY, and on a coil already at 2.6 K superheat there is almost no room left.
+
+     So the test's premise -- that the valve command is a mass-flow control -- describes a
+     MANUAL valve, and the old additive law passed it only because, at Kp = 0.04, the
+     operator's command bypassed the element's own feedback. It was scored as a TXV and
+     behaved as a hand valve.
+
+     Per ENGINEERING_DIRECTIVES 2.3 and HANDOFF section 7.7 the test is NOT edited to make
+     this pass. The rewrite is kept behind this switch, defaulted OFF so the gate stays
+     6/6, exactly as `CoilAirSide.counterflow` preserved the co-current arrangement.
+     RESOLVING IT IS A USER DECISION, because it is a trainer-requirement question, not a
+     physics question: either the machine's TXV is modelled faithfully and the valve knob
+     stops being a mass-flow control, or the knob keeps its teaching role and the element
+     stays a hand valve. See HANDOFF section 8. */
+  superheat_set_k = if txv_setpoint_lever
+    then max(0.5, superheat_target_k + txv_screw_span_k * (0.5 - txv_opening_frac))
+    else superheat_target_k;
+  tau_txv * der(txv_opening_cmd) + txv_opening_cmd = max(0.05, min(1.0,
+    if txv_setpoint_lever
+    then txv_stroke_ref + txv_gain_per_k * (superheat_k - superheat_set_k)
+    else txv_opening_frac + 0.04 * (superheat_k - superheat_target_k)));
   txv_saturated   = (txv_opening_cmd >= 0.999) or (txv_opening_cmd <= 0.051);
 
   /* ---------------- readouts ---------------- */
@@ -493,7 +577,7 @@ equation
   superheat_mixed_k     = superheat_k;
 
   /* ---------------- residuals, reported separately ---------------- */
-  res_mass_kg_s   = comp.InFlow.m_flow + txv.InFlow.m_flow;
+  sum_mass_flow_kg_s   = comp.InFlow.m_flow + txv.InFlow.m_flow;
   /* Q_suction_line_w added 2026-08-04 WITH the suction line. It is a real energy input
      to the refrigerant, so leaving it out would open this residual by exactly the
      amount of the new heat and look like a modelling error in something else. */

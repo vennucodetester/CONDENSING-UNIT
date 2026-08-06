@@ -68,7 +68,7 @@ model ClosedLoopM1e
      Each is a separately-reported error term. Do NOT collapse them into a
      single objective - the whole purpose is to see WHICH one misbehaves. */
 
-  output Real res_mass_kg_s(unit="kg/s")
+  output Real sum_mass_flow_kg_s(unit="kg/s")
     "mass residual: compressor flow minus TXV flow. Zero at closure.";
   output Real res_energy_w(unit="W")
     "energy residual: Q_evap + W_comp - Q_cond_rejected. Zero at closure.";
@@ -126,7 +126,7 @@ equation
   M_charge_kg = evap.M_tot + cond.M_tot;
 
   /* ---------------- residuals, reported separately ---------------- */
-  res_mass_kg_s   = comp.InFlow.m_flow + txv.InFlow.m_flow;
+  sum_mass_flow_kg_s   = comp.InFlow.m_flow + txv.InFlow.m_flow;
   res_energy_w    = Q_evap_w + W_comp_w + Q_cond_w;
   res_superheat_k = superheat_k - superheat_target_k;
   res_subcool_k   = subcooling_k;

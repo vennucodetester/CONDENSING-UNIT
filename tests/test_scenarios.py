@@ -294,23 +294,83 @@ class FmuScenarioTest(unittest.TestCase):
     # D11 — the low side must reach the high side (D3 in reverse).
     # ------------------------------------------------------------------
     def test_more_mass_flow_raises_discharge_pressure(self):
-        """Opening the valve pushes more refrigerant through the condenser, which must
-        then reject more heat — and with fixed size and air it can only do that by
-        running hotter. Head pressure rises.
+        """More refrigerant through the condenser must be rejected, and with fixed size
+        and air the coil can only do that by running hotter. Head pressure rises.
 
         The demo engine moved 74% more refrigerant with zero head change.
+
+        THE LEVER CHANGED 2026-08-06, WITH THE USER'S EXPLICIT APPROVAL. It used to be
+        `txv_opening_frac=0.75`. That was wrong once the valve became a real thermostatic
+        element, and the claim — not the test — was what needed fixing
+        (ENGINEERING_DIRECTIVES 1.7, HANDOFF section 7.7):
+
+          At fixed displacement and speed the COMPRESSOR sets the mass flow,
+          mdot = rho_suction * V_s * N * eps_v. A thermostatic valve does not choose the
+          flow; it adjusts its stroke to PASS the flow the compressor demands, while
+          holding superheat. Opening it can only raise mass flow through suction DENSITY,
+          which is worth +0.8 % here — not the +5 % this test requires.
+
+        So the old lever asserted a property of a HAND valve. The legacy law passed only
+        because at Kp = 0.04 the operator's command bypassed the element's own feedback.
+        `compressor_speed_frac` is the honest lever: speed sets mass flow by definition.
+
+        NOTHING WAS RELAXED. Both assertions and both magnitudes are the originals; only
+        the lever moved. Measured at 1.15x speed: mass flow +9.9 %, head +1.6 %.
+        The valve keeps a test of its own real authority — see
+        test_the_txv_holds_superheat_near_its_setpoint below.
         """
         nom, s1 = run()
-        open_txv, s2 = run(txv_opening_frac=0.75)
+        faster, s2 = run(compressor_speed_frac=1.15)
         self.assertTrue(s1 and s2, "not settled")
 
         self.assertGreater(
-            open_txv["m_dot_kg_s"], nom["m_dot_kg_s"] * 1.05,
-            "sanity: opening the valve must raise mass flow",
+            faster["m_dot_kg_s"], nom["m_dot_kg_s"] * 1.05,
+            "sanity: running the compressor faster must raise mass flow",
         )
         self.assertGreater(
-            open_txv["p_discharge_pa"], nom["p_discharge_pa"],
+            faster["p_discharge_pa"], nom["p_discharge_pa"],
             "substantially more mass flow must raise discharge pressure",
+        )
+
+    def test_the_txv_holds_superheat_near_its_setpoint(self):
+        """The valve's REAL authority: it controls superheat, not mass flow.
+
+        Added 2026-08-06 alongside the lever change above, so that re-pointing that test
+        does not leave the trainer's valve control unasserted. The gate must not get
+        easier.
+
+        Two claims, and the SECOND is what distinguishes a thermostatic element from the
+        hand valve the model used to have:
+
+        1. Turning the screw open lowers the demanded superheat, so settled superheat
+           falls and suction pressure rises. (The legacy law also does this, so on its
+           own this proves nothing — which is exactly why claim 2 is here.)
+        2. The element HOLDS superheat near what it is demanding. A real thermostatic
+           valve tracks its setpoint to within a couple of kelvin; the legacy
+           proportional law sat 6.9 K above it (8.19 K settled against a 1.27 K target)
+           because its gain was pinned low to protect valve authority.
+
+        Measured 2026-08-06 with txv_setpoint_lever = true:
+            frac 0.50 -> superheat 2.56 K, setpoint 1.27 K, offset 1.29 K
+            frac 0.75 -> superheat 1.82 K, suction +0.75 kPa
+        Under the legacy law the offset is 6.92 K, so claim 2 fails there. Verified.
+        """
+        nom, s1 = run()
+        screw_open, s2 = run(txv_opening_frac=0.75)
+        self.assertTrue(s1 and s2, "not settled")
+
+        self.assertLess(
+            screw_open["superheat_k"], nom["superheat_k"] - 0.3,
+            "opening the superheat screw must lower settled superheat",
+        )
+        self.assertGreater(
+            screw_open["p_suction_pa"], nom["p_suction_pa"],
+            "a more open valve floods the coil further, so suction pressure must rise",
+        )
+        self.assertLess(
+            abs(nom["superheat_k"] - nom["superheat_set_k"]), 2.0,
+            "a thermostatic element must hold superheat near its setpoint; a gain "
+            "pinned low enough to fake mass-flow authority cannot",
         )
 
     # ------------------------------------------------------------------

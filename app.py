@@ -4,7 +4,7 @@ import math
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QPointF, QRectF, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QPointF, QRectF, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence, QAction, QColor, QFont, QPainter, QPen, QPolygonF
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -376,7 +376,7 @@ class Schematic(QWidget):
             "txv": (
                 "TXV",
                 [
-                    f"Opening: {inputs.txv_opening_frac * 100:.0f}%",
+                    f"Superheat screw: {inputs.txv_opening_frac * 100:.0f}%",
                     f"Installed size: {inputs.txv_size_frac * 100:.0f}%",
                     f"Liquid pressure: {shown('p_txv_inlet_pa')}",
                     f"Liquid temperature: {shown('T_liquid_k')}",
@@ -773,17 +773,23 @@ class Schematic(QWidget):
 #
 # Nominals come from the model, not guesses:
 #   evaporator airflow 0.15 m3/s (fan curve x coil dP, 2 fans) = 318 CFM
-#   condenser airflow  0.076 m3/s (1 fan)                      = 161 CFM
-#   compressor         50 rev/s                                = 3000 RPM
+#   condenser airflow  0.1203 m3/s (1 fan)                     = 255 CFM
+#   compressor         58.33 rev/s                             = 3500 RPM
+# CORRECTED 2026-08-06. Both had gone stale against the model and the UI was reporting
+# operating points the engine was not running -- 3000 RPM when the calibrated speed is
+# 58.33 rev/s from the measured 122.9 V 60 Hz supply, and 161 CFM when the condenser
+# airflow was re-derived from the measured air-side energy balance. Display constants
+# only; neither feeds the FMU. A wrong number on screen in a TRAINING tool is worse
+# than the churn of fixing it.
 #   TXV orifice        Afull = 9.6e-8 m2                       = 0.096 mm2
 K2F = lambda k: (k - 273.15) * 9.0 / 5.0 + 32.0
 F2K = lambda f: (f - 32.0) * 5.0 / 9.0 + 273.15
 
 CONTROL_UNITS: dict[str, dict] = {
-    "compressor_speed_frac":  dict(kind="frac", unit="RPM", nominal=3000.0, lo=0.50, hi=1.20, dp=0),
-    "condenser_airflow_frac": dict(kind="frac", unit="CFM", nominal=161.0,  lo=0.40, hi=1.20, dp=0),
+    "compressor_speed_frac":  dict(kind="frac", unit="RPM", nominal=3500.0, lo=0.50, hi=1.20, dp=0),
+    "condenser_airflow_frac": dict(kind="frac", unit="CFM", nominal=255.0,  lo=0.40, hi=1.20, dp=0),
     "airflow_frac":           dict(kind="frac", unit="CFM", nominal=318.0,  lo=0.40, hi=1.20, dp=0),
-    "txv_opening_frac":       dict(kind="frac", unit="% open", nominal=100.0, lo=0.20, hi=1.00, dp=0),
+    "txv_opening_frac":       dict(kind="frac", unit="% screw", nominal=100.0, lo=0.20, hi=1.00, dp=0),
     "txv_size_frac":          dict(kind="frac", unit="mm2 orifice", nominal=0.096, lo=0.70, hi=1.30, dp=3),
     # absolute engine values
     "v_s_cm3":            dict(kind="direct", unit="cm3/rev", lo=8.0,   hi=40.0,  dp=1),
@@ -965,6 +971,32 @@ class FieldReadings(QFrame):
             "The model is not involved in producing them."
         )
         self.output.setPlainText(text)
+
+
+class _SolveWorker(QThread):
+    """Runs one FMU solve off the UI thread.
+
+    ADDED 2026-08-06. The solve takes ~8 s and used to run on the UI thread, so the
+    window froze solid for its duration; `set_busy()` + `processEvents()` existed only
+    to paint an explanation before the freeze. That is now a real busy state.
+
+    The worker touches NO widgets. It emits the result and the UI thread applies it --
+    Qt widgets are not thread-safe and a cross-thread paint is a crash, not a glitch.
+    """
+
+    solved = pyqtSignal(object)
+    failed = pyqtSignal(str)
+
+    def __init__(self, engine, inputs: dict) -> None:
+        super().__init__()
+        self._engine = engine
+        self._inputs = dict(inputs)   # copied: the UI may keep editing while we solve
+
+    def run(self) -> None:            # noqa: D102 - QThread entry point
+        try:
+            self.solved.emit(self._engine.run(EngineInput(**self._inputs)))
+        except Exception as exc:      # a failed solve must not kill the thread silently
+            self.failed.emit(f"{type(exc).__name__}: {exc}")
 
 
 class ComponentControls(QFrame):
@@ -1294,7 +1326,12 @@ class MainWindow(QMainWindow):
             self.engine = FmuEngine(
                 Path(__file__).resolve().parent / "fmu" / "RefrigerationTrainer.fmu",
                 nominal_evap_airflow_m3_s=0.15,
-                nominal_condenser_airflow_m3_s=0.076,
+                # 0.076 -> 0.1203 (2026-08-06). engine_fmu multiplies this nominal by
+                # condenser_airflow_frac, so at the default frac = 1.0 the app was
+                # solving at the OLD fan-curve estimate while the calibrated, measured
+                # value is 0.1203 m3/s (HANDOFF.md section 5). The whole UI was therefore
+                # showing a point the model was not calibrated at.
+                nominal_condenser_airflow_m3_s=0.1203,
             )
             self.engine_is_fmu = True
         except FmuUnavailable as exc:
@@ -1319,6 +1356,7 @@ class MainWindow(QMainWindow):
         self.valve_states = {"liquid_line_solenoid": True, "hot_gas_solenoid": False}
         self.current: EngineResult | None = None
         self.previous: EngineResult | None = None
+        self._solve_worker: _SolveWorker | None = None
         self.baseline: EngineResult | None = self.engine.run(EngineInput())
 
         self._build_ui()
@@ -1346,7 +1384,16 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(20, 16, 20, 24)
         layout.setSpacing(14)
 
-        layout.addWidget(self._build_defect_banner())
+        # BANNER IS CONDITIONAL SINCE 2026-08-06 (issue 10 of TASKS.md, and
+        # ENGINEERING_DIRECTIVES 2.1). The defects it warns about are defects of
+        # twin/demo_engine.py. With the FMU live they are not on screen and the gate is
+        # 3/3 at 7/7 with docs/VALIDATION.md recording the state, so the banner is
+        # hidden. On FALLBACK to the demo engine it still appears -- deleting it
+        # outright would have silently dropped the warning on the one path that still
+        # needs it. The ILLUSTRATIVE DEMO badge and the R290 safety text stay in BOTH
+        # cases: the model still has open errors and propane is flammable.
+        if not self.engine_is_fmu:
+            layout.addWidget(self._build_defect_banner())
 
         hero = QFrame()
         hero.setObjectName("hero")
@@ -1550,7 +1597,15 @@ class MainWindow(QMainWindow):
         return frame
 
     def _update_result(self) -> None:
-        result = self.engine.run(EngineInput(**self.input_values))
+        """Synchronous solve. Used only during construction, before the window shows.
+
+        Every user-triggered path goes through `_start_solve` instead -- see issue 9 of
+        TASKS.md. Blocking here is fine; blocking once the window is visible is not.
+        """
+        self._apply_result(self.engine.run(EngineInput(**self.input_values)))
+
+    def _apply_result(self, result) -> None:
+        """Put a finished solve on screen. MUST run on the UI thread."""
         # Calculated companions shown beside their inputs (outputs, never editable).
         self.component_controls.set_derived({
             "v_s_cm3": f"= {result.quantities['W_comp_w'].value / 745.7:.2f} HP shaft",
@@ -1561,6 +1616,57 @@ class MainWindow(QMainWindow):
         self.previous = self.current
         self.current = result
         self._render()
+
+    def _start_solve(self) -> bool:
+        """Kick off a solve on a worker thread. Returns False if one is already running.
+
+        THE RE-ENTRANCY GUARD IS LOAD-BEARING. Without it a second Calculate would start
+        a second FMU solve over the same state and the two results would race to land on
+        screen -- a worse bug than the freeze this replaces.
+        """
+        if self._solve_worker is not None and self._solve_worker.isRunning():
+            return False
+        self.component_controls.set_busy()
+        worker = _SolveWorker(self.engine, self.input_values)
+        worker.solved.connect(self._on_solved)
+        worker.failed.connect(self._on_solve_failed)
+        worker.finished.connect(self._on_solve_finished)
+        self._solve_worker = worker
+        worker.start()
+        return True
+
+    def _on_solved(self, result) -> None:
+        from datetime import datetime
+
+        self._apply_result(result)
+        self.component_controls.set_done(datetime.now().strftime("%H:%M:%S"))
+
+    def _on_solve_failed(self, message: str) -> None:
+        """A solve that raised. Say so plainly rather than leaving 'Calculating...' up."""
+        self.component_controls.set_pending(True)
+        self.component_controls.pending_note.setText(f"Solve failed - {message}")
+        self.component_controls.pending_note.setStyleSheet("color:#b42318; font-weight:600;")
+
+    def _on_solve_finished(self) -> None:
+        self._solve_worker = None
+
+    def wait_for_solve(self, timeout_ms: int = 120000) -> bool:
+        """Block until the in-flight solve finishes. FOR TESTS AND SHUTDOWN ONLY.
+
+        Never call this from a UI handler -- it would reinstate exactly the freeze that
+        the worker thread removes.
+        """
+        worker = self._solve_worker
+        if worker is None:
+            return True
+        finished = worker.wait(timeout_ms)
+        QApplication.processEvents()   # let the queued solved/failed signal land
+        return finished
+
+    def closeEvent(self, event) -> None:
+        """Do not let a solve outlive the window it will try to paint into."""
+        self.wait_for_solve()
+        super().closeEvent(event)
 
     def _select_component(self, component: str) -> None:
         self.schematic.set_selected_component(component)
@@ -1573,16 +1679,7 @@ class MainWindow(QMainWindow):
         self.component_controls.set_pending(True)
 
     def _recalculate(self) -> None:
-        from datetime import datetime
-
-        # The solve blocks the UI thread for ~8 s. Paint the busy state BEFORE it
-        # starts, otherwise the window simply freezes with no explanation.
-        self.component_controls.set_busy()
-        QApplication.processEvents()
-        try:
-            self._update_result()
-        finally:
-            self.component_controls.set_done(datetime.now().strftime("%H:%M:%S"))
+        self._start_solve()
 
     def _set_nameplate_charge(self, grams: float) -> None:
         """Reference figure only -- deliberately does NOT re-solve."""
@@ -1606,7 +1703,7 @@ class MainWindow(QMainWindow):
             self.input_values["liquid_line_solenoid_open"] = not is_open
             self.ph_plot.set_defrost_visual_only(is_open)
         self.schematic.set_valve_states(self.valve_states)
-        self._update_result()
+        self._start_solve()
 
     def _with_baseline(self, result: EngineResult, baseline: EngineResult) -> EngineResult:
         quantities: dict[str, Quantity] = {}
@@ -1687,7 +1784,7 @@ class MainWindow(QMainWindow):
         self.component_controls.sync_values(self.input_values)
         self.schematic.set_valve_states(self.valve_states)
         self.ph_plot.set_defrost_visual_only(False)
-        self._update_result()
+        self._start_solve()
 
     def _show_about(self) -> None:
         QMessageBox.information(

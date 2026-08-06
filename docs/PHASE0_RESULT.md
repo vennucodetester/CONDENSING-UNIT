@@ -389,7 +389,7 @@ damping or continuation.
 
 | Output | Meaning |
 |---|---|
-| `res_mass_kg_s` | compressor flow + TXV flow — zero at closure |
+| `sum_mass_flow_kg_s` | compressor flow + TXV flow. **A SUM, not a residual** — both inflows are positive, so it equals 2*mdot at closure, never zero. Renamed from `res_mass_kg_s` 2026-08-06 |
 | `res_energy_w` | `Q_evap + W_comp + Q_cond` — zero at closure |
 | `res_superheat_k` | suction superheat minus target |
 | `res_subcool_k` | condenser-outlet subcooling (reported, not driven) |
