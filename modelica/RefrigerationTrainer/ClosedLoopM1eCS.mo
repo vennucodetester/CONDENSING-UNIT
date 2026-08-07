@@ -448,6 +448,31 @@ model ClosedLoopM1eCS
   WallTemperatureSource wall_evap_placeholder(N = N, T_k = T_box_k);
   WallTemperatureSource wall_cond_placeholder(N = N, T_k = T_amb_k);
 
+  /* ================= EVAPORATOR METAL WALL, added 2026-08-06 =================
+     WHY. Once the thermostat could cycle (task #31) the duty came out at 84.2 % against a
+     measured 85.0 % -- the energy BALANCE is right -- but the cycle PERIOD was 0.8 min
+     against a measured 22 min. The coil had NO thermal mass, so the moment Q_evap stopped
+     the discharge air rebounded within seconds and the thermostat cut straight back in.
+
+     MASS IS FROM THE DRAWING, NOT FROM THE OFF-CYCLE. docs/AS_BUILT_GEOMETRY.md section 2:
+     40 passes x 20.57 in plus 38 return bends of 0.375 in OD, 0.016 in wall copper gives
+     2.29 kg of tube metal; a generous aluminium fin allowance adds ~2 kg. Using 4.3 kg at
+     an effective 600 J/kgK (copper 385 / aluminium 900, mass-weighted) = ~2600 J/K.
+
+     THIS WILL NOT FIX THE PERIOD, AND IT IS NOT SUPPOSED TO. The arithmetic was done
+     first: the measured 360 s off period against a 181 W/K air stream needs ~21700 J/K,
+     so geometry is SHORT BY ~7x. Fitting M_wall to close that would invent 20 kg of
+     aluminium that is not on the drawing -- the exact "fit a soft parameter to close a
+     gap" move HANDOFF section 8 forbids. The remaining store is almost certainly FROST
+     (fusion 334 kJ/kg, sublimation ~2838 kJ/kg, so 0.1 kg dwarfs the whole metal mass),
+     which is why this machine has hot-gas defrost hardware at all. See task #39.
+     PREDICTION BEFORE THE RUN: cycle period moves 0.8 -> roughly 2 min, still far short
+     of 22, and the steady-state gate is unaffected because a capacitance changes only
+     the path to equilibrium, not equilibrium itself. */
+  ThermoCycle.Components.HeatFlow.Walls.MetalWall wall_evap(
+    N = N, Aext = 0.572, Aint = 0.572, M_wall = 4.3, c_wall = 600,
+    Tstart_wall_1 = T_box_k, Tstart_wall_end = T_box_k, steadystate_T_wall = true);
+
   /* Proportional TXV Control Law signal & block driver */
   output Real txv_opening_cmd(start = txv_opening_frac) "Clamped valve opening command [0.05..1.0]";
   Modelica.Blocks.Sources.RealExpression txvCmd(y = txv_opening_cmd);
@@ -576,7 +601,8 @@ equation
      superheat. It no longer does, which is the whole point - see SuctionLine.mo. */
   connect(evap.OutFlow, suction.InFlow);
   connect(suction.OutFlow, comp.InFlow);
-  connect(coil_evap.port, evap.Wall_int);
+  connect(coil_evap.port, wall_evap.Wall_ext);
+  connect(wall_evap.Wall_int, evap.Wall_int);
   connect(coil_cond.port, cond.Wall_int);
   coil_evap.V_dot_air_m3_s = evap_airflow_m3_s;
   coil_cond.V_dot_air_m3_s = condenser_airflow_m3_s;
