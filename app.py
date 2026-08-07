@@ -391,8 +391,16 @@ class Schematic(QWidget):
                     f"Suction pressure: {shown('p_suction_pa')}",
                     f"Evaporating saturation: {shown('T_evap_sat_k')}",
                     f"Refrigerant outlet actual: {shown('T_suction_k')}",
-                    f"Circuit superheat: {shown('superheat_circuit_k_1')}",
-                    f"Circuit mass flow: {shown('m_dot_circuit_kg_s_1')}",
+                    # SINGLE-CIRCUIT MODEL (2026-08-06). ClosedLoopM1eCS.mo:598-605 sets
+                    # superheat_circuit_k_1 = _2 = superheat_k and the two mass flows
+                    # likewise, so these were the SAME number shown twice as if they were
+                    # two independent measurements. Real maldistribution on this machine is
+                    # 2.4-2.7 K across all three campaigns, so a balanced pair taught the
+                    # opposite of the truth. Labelled rather than deleted: the circuit
+                    # exists physically, the model just does not resolve the split.
+                    f"Superheat (coil, not per-circuit): {shown('superheat_circuit_k_1')}",
+                    f"Mass flow (total / 2, not measured per-circuit): {shown('m_dot_circuit_kg_s_1')}",
+                    "Model is SINGLE-CIRCUIT — no maldistribution (measured: 2.4–2.7 K)",
                     f"Air entering / leaving: {shown('T_air_in_evap_k')} / {shown('T_air_off_evap_k')}",
                     f"Cooling capacity: {shown('Q_evap_w')}",
                 ],
@@ -405,22 +413,24 @@ class Schematic(QWidget):
                     f"Suction pressure: {shown('p_suction_pa')}",
                     f"Evaporating saturation: {shown('T_evap_sat_k')}",
                     f"Refrigerant outlet actual: {shown('T_suction_k')}",
-                    f"Circuit superheat: {shown('superheat_circuit_k_2')}",
-                    f"Circuit mass flow: {shown('m_dot_circuit_kg_s_2')}",
+                    f"Superheat (coil, not per-circuit): {shown('superheat_circuit_k_2')}",
+                    f"Mass flow (total / 2, not measured per-circuit): {shown('m_dot_circuit_kg_s_2')}",
+                    "Model is SINGLE-CIRCUIT — no maldistribution (measured: 2.4–2.7 K)",
                     f"Air entering / leaving: {shown('T_air_in_evap_k')} / {shown('T_air_off_evap_k')}",
                     f"Cooling capacity: {shown('Q_evap_w')}",
                 ],
             ),
             "evaporator": (
-                "Evaporator — two circuits",
+                "Evaporator — single-circuit model",
                 [
                     f"Airflow: {inputs.airflow_frac * 100:.0f}%",
                     f"Installed size: {inputs.evaporator_capacity_frac * 100:.0f}%",
                     f"Suction pressure: {shown('p_suction_pa')}",
                     f"Evaporating saturation: {shown('T_evap_sat_k')}",
                     f"Refrigerant outlet actual: {shown('T_suction_k')}",
-                    f"Circuit 1 / 2 superheat: {shown('superheat_circuit_k_1')} / {shown('superheat_circuit_k_2')}",
-                    f"Circuit 1 / 2 flow: {shown('m_dot_circuit_kg_s_1')} / {shown('m_dot_circuit_kg_s_2')}",
+                    f"Coil superheat: {shown('superheat_circuit_k_1')}",
+                    f"Mass flow: {shown('m_dot_circuit_kg_s_1')}",
+                    "SINGLE-CIRCUIT — the two circuits are not resolved separately",
                     f"Air entering / leaving: {shown('T_air_in_evap_k')} / {shown('T_air_off_evap_k')}",
                     f"Cooling capacity: {shown('Q_evap_w')}",
                 ],
@@ -465,7 +475,7 @@ class Schematic(QWidget):
             ),
             "distributor": (
                 "Distributor",
-                ["Normal inlet: TXV", "Side inlet: hot-gas check valve", "Outlet split: evaporator circuits 1 and 2"],
+                ["Normal inlet: TXV", "Side inlet: hot-gas check valve", "Outlet: evaporator (single-circuit model)"],
             ),
         }
         title, lines = details.get(component, (component, []))
@@ -631,7 +641,7 @@ class Schematic(QWidget):
         painter.setPen(QPen(QColor("#2563a6") if selected_evap else structure, 3 if selected_evap else 1.5))
         painter.drawRoundedRect(evaporator, 8, 8)
         painter.setPen(QColor("#172033"))
-        painter.drawText(QRectF(evaporator.left(), evaporator.top() + 5, evaporator.width(), 22), Qt.AlignmentFlag.AlignCenter, "Evaporator — two circuits")
+        painter.drawText(QRectF(evaporator.left(), evaporator.top() + 5, evaporator.width(), 22), Qt.AlignmentFlag.AlignCenter, "Evaporator — single-circuit model")
 
         circuit_1_y = outlet_1.y()
         circuit_2_y = outlet_2.y()
@@ -650,10 +660,13 @@ class Schematic(QWidget):
         # circuit_y - 7 -- clear of the circuit tube. Drawing the current value at
         # -7 put the "was" line straight through the pipework.
         circuit_text = QColor("#344054")
-        self._label(painter, evaporator.left() + 14, circuit_1_y - 20, f"C1  SH {_format_quantity('superheat_circuit_k_1', q['superheat_circuit_k_1'])}", circuit_text)
+        self._label(painter, evaporator.left() + 14, circuit_1_y - 20, f"SH {_format_quantity('superheat_circuit_k_1', q['superheat_circuit_k_1'])}  (single-circuit model)", circuit_text)
         self._prev_label(painter, evaporator.left() + 14, circuit_1_y - 20, ("superheat_circuit_k_1",))
-        self._label(painter, evaporator.left() + 14, circuit_2_y - 20, f"C2  SH {_format_quantity('superheat_circuit_k_2', q['superheat_circuit_k_2'])}", circuit_text)
-        self._prev_label(painter, evaporator.left() + 14, circuit_2_y - 20, ("superheat_circuit_k_2",))
+        # Second circuit label REMOVED 2026-08-06. It read superheat_circuit_k_2, which
+        # ClosedLoopM1eCS.mo:604 sets equal to superheat_circuit_k_1 -- the same number
+        # printed twice beside two drawn tubes, which is what made a single-circuit model
+        # look like a balanced pair. The tubes stay because the coil really is two-circuit;
+        # only the fabricated per-circuit READOUT goes.
 
         painter.setPen(QColor("#7a4300"))
         painter.drawText(QRectF(check_point.x() - 48, check_point.y() - 31, 96, 22), Qt.AlignmentFlag.AlignCenter, "Check valve")
@@ -803,8 +816,12 @@ CONTROL_UNITS: dict[str, dict] = {
     "txv_size_frac":          dict(kind="frac", unit="mm2 orifice", nominal=0.096, lo=0.70, hi=1.30, dp=3),
     # absolute engine values
     "v_s_cm3":            dict(kind="direct", unit="cm3/rev", lo=8.0,   hi=40.0,  dp=1),
-    "superheat_target_k": dict(kind="direct", unit="F superheat", lo=2.0, hi=15.0, dp=1,
-                               to_disp=lambda k: k * 9.0 / 5.0, from_disp=lambda f: f * 5.0 / 9.0),
+    # superheat_target_k IS NO LONGER AN OPERATOR CONTROL (2026-08-06). Superheat is a
+    # MEASURED OUTPUT in real testing -- you turn the stem and then read what superheat
+    # results, you do not dial in the answer. The stem itself is txv_opening_frac above,
+    # which is what a technician actually turns. superheat_target_k stays a model
+    # parameter (the valve's nominal setting) but is not offered here.
+    "q_box_load_btu_hr":  dict(kind="direct", unit="BTU/hr box load", lo=200.0, hi=3000.0, dp=0),
     "t_amb_k":            dict(kind="direct", unit="F ambient", lo=F2K(50.0),  hi=F2K(120.0), dp=0,
                                to_disp=K2F, from_disp=F2K),
     "t_box_k":            dict(kind="direct", unit="F return air", lo=F2K(-25.0), hi=F2K(45.0), dp=0,
@@ -1046,21 +1063,29 @@ class ComponentControls(QFrame):
                 # opening %" was never a field concept and is no longer offered;
                 # the engine holds it at its calibrated 0.50. Valve size is a
                 # device selection, fixed for this unit.
-                ("TXV preset (superheat it holds)", "superheat_target_k", 0, 0),
+                # CHANGED 2026-08-06. This used to offer superheat_target_k -- i.e. type
+                # in the superheat you want. That is dialling in the answer. What a
+                # technician physically turns is the STEM; the superheat that results is
+                # then MEASURED. Bounds 0.30-0.63 are the reachable and live range: below
+                # 0.30 the solver aborts, above 0.628 the setpoint hits its floor.
+                ("TXV adjustment stem", "txv_opening_frac", 0, 0),
             ),
-            "The preset stem is the only field adjustment. Opening is an outcome — "
-            "the valve modulates itself to hold this superheat — and is shown on the "
-            "diagram as a reading, not a control. Valve size is fixed for this unit.",
+            "The stem is the only field adjustment. Turning it changes the superheat the "
+            "valve tries to hold; the superheat actually achieved is a MEASURED OUTPUT, "
+            "shown on the diagram as a reading. Valve size is fixed for this unit.",
         ),
         "evaporator": (
             "Evaporator",
             (
                 ("Evaporator airflow", "airflow_frac", 0, 0),
+                ("Box heat load", "q_box_load_btu_hr", 0, 0),
                 ("Return air", "t_box_k", 0, 0),
                 ("Air-side UA", "ua_evap_nom_w_k", 0, 0),
             ),
-            "Airflow, the return air entering the coil, and the coil's conductance "
-            "are three separate physical changes.",
+            "Airflow, the box heat load, the return air entering the coil, and the coil's "
+            "conductance are separate physical changes. NOTE: box heat load only takes "
+            "effect with the box thermal model enabled; with it off, return air is a fixed "
+            "boundary and the load is inert.",
         ),
         "header": (
             "Suction header",
@@ -1361,6 +1386,7 @@ class MainWindow(QMainWindow):
             # twin/engine_base.py EngineInput. Was 7.0 / 305.15, which put the whole UI
             # at an operating point no validation covered.
             "superheat_target_k": 1.27,
+            "q_box_load_btu_hr": 945.1,
             "t_amb_k": 308.04,
             "t_box_k": 255.37,
             "hot_gas_solenoid_open": False,
@@ -1655,9 +1681,27 @@ class MainWindow(QMainWindow):
         self.component_controls.set_done(datetime.now().strftime("%H:%M:%S"))
 
     def _on_solve_failed(self, message: str) -> None:
-        """A solve that raised. Say so plainly rather than leaving 'Calculating...' up."""
+        """A solve that raised. Say so plainly rather than leaving 'Calculating...' up.
+
+        NOTE, because it is easy to assume otherwise: the engine is chosen ONCE at
+        startup and is never swapped here. A run-time failure keeps the LAST GOOD FMU
+        result on screen and shows this message. It does not silently substitute demo
+        physics -- that would blend two engines without saying so.
+        """
         self.component_controls.set_pending(True)
-        self.component_controls.pending_note.setText(f"Solve failed - {message}")
+        culprit = ""
+        change = getattr(self, "_last_input_change", None)
+        if change:
+            name, prev, now = change
+            shown_name = SPEC.get(name, {}).get("unit", name)
+            try:
+                culprit = (f"  Last change: {name} "
+                           f"{frac_to_display(name, prev):g} -> {frac_to_display(name, now):g}"
+                           f" {shown_name}.")
+            except Exception:
+                culprit = f"  Last change: {name} {prev} -> {now}."
+        self.component_controls.pending_note.setText(
+            f"Solve failed - {message}.{culprit} Showing the previous result.")
         self.component_controls.pending_note.setStyleSheet("color:#b42318; font-weight:600;")
 
     def _on_solve_finished(self) -> None:
@@ -1688,6 +1732,14 @@ class MainWindow(QMainWindow):
     def _set_physical_input(self, parameter: str, value: float) -> None:
         # Store only. An FMU solve is ~8 s, so recomputing on every edit is
         # unusable; the user batches their changes and presses Calculate.
+        # Remember what moved most recently. When a solve fails, the failing input is
+        # almost always the one just changed, and naming it is the difference between
+        # "Solve failed - FMICallException" and something the operator can act on.
+        # ADDED 2026-08-06 with the txv_opening_frac crash (see app.py SPEC bounds note):
+        # a slider at its own end stop aborted the solver, and the message said nothing
+        # about which slider.
+        prev = self.input_values.get(parameter)
+        self._last_input_change = (parameter, prev, value)
         self.input_values[parameter] = value
         self.component_controls.set_pending(True)
 

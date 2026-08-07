@@ -128,6 +128,37 @@ model ClosedLoopM1eCS
   /* --- NEWLY EXPOSED AS FMI PARAMETERS 2026-08-03 --------------------------
      Previously compiled-in constants. Exposed so the app can drive them; all
      keep their existing values, so this changes no result. */
+  /* PROMOTED FROM A LITERAL 2026-08-06. epsilon_s was hardcoded as 0.72 at the compressor
+     instantiation: no name, no source, not in the provenance table, and not sweepable. It
+     was the one significant compressor number that could drift silently, which is exactly
+     what tests/test_calibration_provenance.py exists to prevent. Compare epsilon_v, which
+     was deliberately made a PR-dependent VARIABLE with its k_v recorded and guarded.
+     STILL CONSTANT WITH PRESSURE RATIO, and that is a known limitation, not an oversight.
+     Real isentropic efficiency of a small hermetic peaks near PR 3-4 and falls by PR 10;
+     the 2026-08-06 control sweep spans PR 6.87 to 10.66. Holding it flat makes the model
+     progressively OPTIMISTIC as head pressure rises - it under-predicts compressor work and
+     discharge temperature and over-predicts COP exactly where a real machine degrades. Now
+     that it is Evaluate=false it can at least be swept without a rebuild to bound how much
+     that assumption is worth. 0.72 is also at the optimistic end for a 1/3 HP hermetic on
+     propane even at its best point; 0.60-0.68 is more typical. */
+  /* ADDED 2026-08-06 so REFRIGERANT CHARGE becomes reachable. HANDOFF section 4 records
+     the condenser hstart profile as the ONLY charge control, and hstart needed a REBUILD,
+     so charge could not be swept at all. This scale factor multiplies that profile, is
+     Evaluate=false, and therefore turns charge from unreachable into an ordinary sweep --
+     one rebuild buys unlimited charge studies afterwards.
+     Charge remains an OUTCOME, not an input: you do not set grams, you set the initial
+     condition and READ M_charge_kg. To hit a target charge, root-solve on this scale the
+     same way scratch/box_equilibrium.py solves for box temperature - M_charge is monotone
+     in it. LOWER scale = LOWER hstart = more liquid in the condenser = MORE charge.
+     Verified by sweep 2026-08-06, and the physics is the technician's own diagnostic:
+         scale 0.90 -> 56.90 g total, cond 48.97 g, subcooling 13.87 K, superheat 1.81 K
+         scale 1.00 -> 43.44 g total, cond 35.63 g, subcooling  8.79 K, superheat 1.93 K
+         scale 1.10 -> 37.69 g total, cond 29.93 g, subcooling  6.88 K, superheat 1.96 K
+     Charge moves SUBCOOLING strongly and superheat barely at all, because the TXV holds
+     superheat. That is exactly how under- and overcharge are diagnosed in the field.
+     1.0 reproduces every prior result exactly. */
+  parameter Real charge_hstart_scale = 1.0 "scales the condenser hstart profile; the model's only charge control" annotation(Evaluate=false);
+  parameter Real eta_is_nom = 0.72 "Compressor isentropic efficiency - CONSTANT, no PR dependence" annotation(Evaluate=false);
   parameter Real V_s_cm3                        = 20.0    "Compressor swept volume [cm3/rev] - ALX440U-DS3B01" annotation(Evaluate=false);
   parameter Real UA_evap_nom_w_k                = 132.8   "Evaporator air-side conductance at design airflow [W/K]" annotation(Evaluate=false);
   parameter Real UA_cond_nom_w_k                = 575.0   "Condenser air-side conductance at design airflow [W/K]" annotation(Evaluate=false);
@@ -234,7 +265,7 @@ model ClosedLoopM1eCS
        PREDICTION: mass flow ~doubles, capacity 355 W -> roughly 700 W (still short of
        the 1190 W catalogue point, because UA_air_nom is still fitted against the
        pre-sign-fix coil). */
-    epsilon_s = 0.72, V_s = V_s_cm3*1e-6,
+    epsilon_s = eta_is_nom, V_s = V_s_cm3*1e-6, run = comp_run,
     p_su_start = p_evap_start, p_ex_start = p_cond_start,
     /* 283.15 -> 271.86 (2026-08-04), with p_evap_start. 271.86 K = the MEASURED
        compressor-inlet state: -24.17 C saturated plus the 22.88 K suction superheat.
@@ -294,7 +325,7 @@ model ClosedLoopM1eCS
        trap). Q_cond (-2.6 %) and air off condenser (+0.8 %) are unaffected by charge
        because the condenser is air-FLOW limited, and both still match.
        REVISIT THIS the moment a trustworthy head pressure exists. */
-    hstart = linspace(5.20000e5, 2.90000e5, N),
+    hstart = charge_hstart_scale*linspace(5.20000e5, 2.90000e5, N),
     steadystate = false);
 
   /* ADDED 2026-08-04. The measured 21.6 K between coil outlet (1.27 K superheat) and
@@ -335,7 +366,18 @@ model ClosedLoopM1eCS
        Charge note: at -32 C this volume holds only ~4 g as vapour, ~12 g at x=0.3 -
        the evaporator is NOT where the 110 g lives. The charge is liquid in the
        CONDENSER, whose V/A remain ASSUMED (no condenser sheet exists). */
-    Unom_l = 500, Unom_tp = 1500, Unom_v = 200,
+    /* Unom_v 200 -> 80 (2026-08-06). The vapour-to-two-phase ratio was 1500/200 = 7.5:1,
+       where R290 in a tube physically wants 20-40:1 -- boiling coefficients run
+       2000-4000 W/m2K while superheated-vapour forced convection at these mass fluxes is
+       50-150. A vapour coefficient several times too generous makes the DRY ZONE transfer
+       far too much heat, which is why raising superheat cost only ~3 % capacity when a UA
+       argument says ~10 %. 80 gives 18.75:1, the low end of the physical range.
+       PREDICTION RECORDED BEFORE THE RUN: the calibrated point barely moves (< 1 % on
+       Q_evap) because at 1.27 K superheat there is almost no dry zone -- verified from
+       evap.Cells[i].x -- while the superheat PENALTY deepens from -3.1 % toward -6..-10 %.
+       If the calibrated point moves more than 2 %, this hypothesis is wrong and the dry
+       zone matters even when nearly flooded, which the cell data contradicts. */
+    Unom_l = 500, Unom_tp = 1500, Unom_v = 80,
     pstart = p_evap_start,
     /* Moved with p_evap_start, 2026-08-04. These must describe the SAME state as the
        pressure or the profile is inconsistent on the first step: 248.99 K = Tsat at

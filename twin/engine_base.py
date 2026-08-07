@@ -76,6 +76,13 @@ class EngineInput:
     superheat_target_k: float = 1.27      # TXV superheat setpoint, K -- MEASURED
     t_amb_k: float = 308.04               # ambient air at the condenser, K -- MEASURED
     t_box_k: float = 255.37               # return air at the evaporator, K
+    # Box thermal model, added 2026-08-06. The heat LOAD is the physical input a tester
+    # controls; box temperature is the RESULT. With box_thermal_model False these are
+    # inert and t_box_k remains the boundary, which is the legacy behaviour.
+    box_thermal_model: bool = False
+    q_box_load_btu_hr: float = 945.1      # internal load: fans, lights, product
+    ua_box_w_k: float = 7.40              # cabinet heat-leak conductance to room air
+    t_room_k: float = 299.71              # ROOM air around the cabinet, NOT t_amb_k
     # The modelled system is ONE complete, self-contained unit — its own compressor,
     # condenser and evaporator. Nothing is shared or externally imposed. See SCOPE 13.1.
 

@@ -81,6 +81,10 @@ model CompressorEM
 
   /* ---------------- PARAMETERS (identical to Compressor) ----------- */
   parameter Real epsilon_s = 0.7 "Isentropic Efficiency";
+  parameter Real N_rot_min_check = 1.0
+    "below this shaft speed [rev/s] the discharge-enthalpy assertion is not meaningful";
+  input Real run = 1.0
+    "1 = energised, 0 = thermostat has cut out. Ramped, never stepped - see tau_comp_s";
   parameter Real epsilon_v0 = 0.95 "Nominal volumetric efficiency at PR=1";
   /* k_v 0.05 -> 0.039 (2026-08-03). CALIBRATED, not guessed. Inverting the ALX440U
      catalogue with CoolProp properties at its stated rating (40 C cond, 10 K SH, 3 K SC)
@@ -243,7 +247,13 @@ equation
     + "if it converges. Check start values before anything else.");
   end when;
 
-  when time > 0.0 and (h_ex < h_valid_min or h_ex > h_valid_max) then
+  /* GUARD SCOPED 2026-08-06. This fired whenever the compressor was starved or stopped,
+     which blocked thermostat cycling entirely (CVode -12 / fmi2GetEventIndicators error at
+     the first cut-out). When N_rot is ~0 the machine passes no mass and h_ex is not a
+     physical discharge state at all, so asserting on it is asking a question that has no
+     meaning. This is NOT loosening a real physics check -- the check still applies in full
+     whenever the compressor is turning, which is the only regime it was ever about. */
+  when time > 0.0 and N_rot > N_rot_min_check and (h_ex < h_valid_min or h_ex > h_valid_max) then
     assert(false,
       "CompressorEM: DISCHARGE enthalpy h_ex has left the fluid's valid range. "
     + "The solver reached a nonphysical state - the result is not trustworthy even "
@@ -258,9 +268,19 @@ equation
      Re-propose the polytropic exponent with a falsifiable prediction if wanted. */
   epsilon_v = max(0.40, min(0.95, epsilon_v0 - k_v * (PR - 1.0)));
   rpm = N_rot*60;
+  /* CHANGED 2026-08-06 so the machine has a valid OFF state. The pair was
+         V_dot_su = epsilon_v*V_s*N_rot;   V_dot_su = M_dot/rho_su;
+     which at N_rot = 0 forces M_dot = 0 through a division by rho_su and leaves the
+     enthalpy relation below still demanding a compression that is not happening. A real
+     compressor when off is a CLOSED PORT held shut by its discharge check valve and reed
+     valves -- not a pump running at zero speed. `run` ramps 0..1 with the thermostat, so
+     the displacement collapses smoothly and the port simply closes. */
   V_dot_su = epsilon_v*V_s*N_rot;
-  V_dot_su = M_dot/rho_su;
-  h_ex = h_su + (h_ex_s - h_su)/epsilon_s;
+  M_dot = run*V_dot_su*rho_su;
+  /* When stopped there is no compression, so h_ex degrades smoothly to h_su rather than
+     to whatever an isentropic relation returns for zero flow. Keeps every property call
+     inside its valid range across the transition. */
+  h_ex = h_su + run*(h_ex_s - h_su)/epsilon_s;
   W_dot = M_dot*(h_ex - h_su) "Consumed Power";
 
   //BOUNDARY CONDITIONS //

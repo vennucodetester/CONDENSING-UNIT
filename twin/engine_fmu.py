@@ -109,7 +109,8 @@ class FmuEngine:
         # Derived from _start_values_template(), never hand-listed -- see the note at the
         # top of this module. Every name the app writes must exist in the FMU, or startup
         # fails loudly here instead of the value being dropped in silence at run time.
-        fmu_inputs = _start_value_keys()
+        template = self._start_values_template()
+        fmu_inputs = set(template)
         missing_inputs = sorted(fmu_inputs - set(by_name))
         missing_outputs = sorted(
             {self._fmu_name(k) for k in REQUIRED_OUTPUTS} - set(by_name)
@@ -123,7 +124,12 @@ class FmuEngine:
                 shape_problems.append(
                     f"{name}: causality is '{var.causality}', expected input/parameter"
                 )
-            expected_type = "Boolean" if name.endswith("_open") else "Real"
+            # Expected type comes from the TEMPLATE's own placeholder, not from a name
+            # suffix. It used to be `Boolean if name.endswith("_open") else "Real"`, which
+            # silently assumed every Boolean parameter is a solenoid. `box_thermal_model`
+            # broke that the moment it was added. Deriving it from the declared placeholder
+            # means a new Boolean can never be mis-typed by its name.
+            expected_type = "Boolean" if isinstance(template[name], bool) else "Real"
             if var.type != expected_type:
                 shape_problems.append(f"{name}: type is '{var.type}', expected {expected_type}")
 
@@ -189,6 +195,10 @@ class FmuEngine:
             "superheat_target_k": 0.0,
             "T_amb_k": 0.0,
             "T_box_k": 0.0,
+            "box_thermal_model": False,
+            "Q_box_load_btu_hr": 0.0,
+            "UA_box_w_k": 0.0,
+            "T_room_k": 0.0,
         }
 
     def _start_values(self, engine_input: EngineInput) -> dict:
@@ -208,6 +218,10 @@ class FmuEngine:
             "superheat_target_k": engine_input.superheat_target_k,
             "T_amb_k": engine_input.t_amb_k,
             "T_box_k": engine_input.t_box_k,
+            "box_thermal_model": engine_input.box_thermal_model,
+            "Q_box_load_btu_hr": engine_input.q_box_load_btu_hr,
+            "UA_box_w_k": engine_input.ua_box_w_k,
+            "T_room_k": engine_input.t_room_k,
         }
         # A key here that the template does not declare would escape the startup
         # interface check and be dropped in silence by FMPy. Fail instead.

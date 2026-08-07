@@ -41,6 +41,24 @@ CALIBRATED = {
     # Operating inputs -- nominal positions the comparison is scored at.
     "txv_opening_frac":       (0.50,    "nominal screw position; the comparison in scratch/compare_to_measured.py is scored here"),
     "txv_size_frac":          (1.0,     "nominal valve size; Afull 9.6e-8 m2 from the installed element"),
+    "eta_is_nom": (
+        0.72,
+        "PROMOTED FROM A LITERAL 2026-08-06. Was hardcoded as epsilon_s = 0.72 at the "
+        "compressor instantiation with no name, no source and no guard - the one significant "
+        "compressor number that could drift silently. STILL CONSTANT WITH PRESSURE RATIO, "
+        "which is a KNOWN LIMITATION: real isentropic efficiency of a small hermetic peaks "
+        "near PR 3-4 and falls by PR 10, while the 2026-08-06 control sweep spans PR 6.87 to "
+        "10.66. Holding it flat makes the model progressively OPTIMISTIC as head pressure "
+        "rises. 0.72 is also at the optimistic end for a 1/3 HP hermetic on propane. Now "
+        "Evaluate=false so the assumption can be bounded by sweeping without a rebuild"),
+    "charge_hstart_scale": (
+        1.0,
+        "ADDED 2026-08-06 so refrigerant charge becomes reachable. HANDOFF section 4 records "
+        "the condenser hstart profile as the ONLY charge control and it needed a REBUILD, so "
+        "charge could not be swept at all. This scales that profile and is Evaluate=false, so "
+        "one rebuild buys unlimited charge studies. Charge stays an OUTCOME: set the initial "
+        "condition and READ M_charge_kg; to hit a target, root-solve on this scale the way "
+        "scratch/box_equilibrium.py solves for box temperature. 1.0 reproduces prior results"),
     "tau_comp_s": (
         2.0,
         "compressor spin-up / spin-down time constant. Added 2026-08-06 with the thermostat "
