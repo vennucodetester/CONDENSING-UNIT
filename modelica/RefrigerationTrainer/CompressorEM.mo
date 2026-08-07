@@ -223,7 +223,18 @@ equation
      Same compositions, same values, no Integer. */
   rho_su = Medium.density_ph(p_su, max(2.5e5, min(8.5e5, h_su)));
   s_su   = Medium.specificEntropy_ph(p_su, max(2.5e5, min(8.5e5, h_su)));
-  h_ex_s = Medium.specificEnthalpy_ps(p_ex, max(2100.0, s_su));
+  /* CHECK-VALVE PHYSICS, added 2026-08-06. p_ex is clamped to at least p_su.
+     WHY: during a thermostat off-cycle the high and low sides EQUALISE, and on restart
+     p_ex can momentarily sit BELOW p_su. The unclamped relation then evaluates an
+     EXPANSION -- h_ex_s < h_su -- and the line below divides that negative step by
+     epsilon_s, amplifying it by 1/0.72. h_ex is driven under its 1.0e5 J/kg floor and the
+     assertion fires. That is what killed every cycling run (task #38).
+     A real compressor cannot do this: the discharge check valve and the reed valves stop
+     any flow until the cylinder has built pressure above the discharge line, so the
+     machine never expands its own discharge gas. Clamping p_ex is that valve. It is NOT a
+     numerical fudge -- an unclamped compressor running backwards is the nonphysical
+     state, and this removes it rather than hiding it. */
+  h_ex_s = Medium.specificEnthalpy_ps(max(p_su, p_ex), max(2100.0, s_su));
 
   /* ---- RANGE GUARD (M1b: out-of-range fails loudly, never warns) ----
      MUST be a `when` clause, NOT a bare `assert` in the equation section.
@@ -280,7 +291,11 @@ equation
   /* When stopped there is no compression, so h_ex degrades smoothly to h_su rather than
      to whatever an isentropic relation returns for zero flow. Keeps every property call
      inside its valid range across the transition. */
-  h_ex = h_su + run*(h_ex_s - h_su)/epsilon_s;
+  /* max(0, ...) is the same check valve seen from the enthalpy side: the rise across a
+     compressor is never negative. Belt and braces with the p_ex clamp above, because the
+     two guard different paths -- the clamp fixes the isentropic state, this fixes any
+     residual negative step surviving the property call. */
+  h_ex = h_su + run*max(0.0, h_ex_s - h_su)/epsilon_s;
   W_dot = M_dot*(h_ex - h_su) "Consumed Power";
 
   //BOUNDARY CONDITIONS //
