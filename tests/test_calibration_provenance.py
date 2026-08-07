@@ -20,6 +20,7 @@ import unittest
 from pathlib import Path
 
 MO = Path(__file__).resolve().parents[1] / "modelica" / "RefrigerationTrainer" / "ClosedLoopM1eCS.mo"
+SUCTION_MO = Path(__file__).resolve().parents[1] / "modelica" / "RefrigerationTrainer" / "SuctionLine.mo"
 
 # parameter -> (expected value, where the value came from)
 # Sources are the ones recorded in HANDOFF.md section 5 and docs/TRAP_RESOLUTION.md.
@@ -51,11 +52,27 @@ SWITCHES = {
     "liquid_line_solenoid_open": (True,  "nominal steady running state, solenoid as found in the measured windows"),
 }
 
+# Calibrated parameters that live OUTSIDE ClosedLoopM1eCS.mo. Same rule, same table.
+CALIBRATED_SUCTION = {
+    "UA_suction_w_k": (
+        2.5,
+        "LUMPED, and deliberately NOT bare-tube. Originally fitted as 105 W over a 44 K "
+        "mean driving dT. The as-built geometry arrived 2026-08-06 (docs/AS_BUILT_GEOMETRY.md "
+        "section 3): 40 in of 0.319 in OD tube = 0.0259 m2 external area, so 2.5 W/K implies "
+        "97 W/m2K -- unreachable for a bare 5/16 in tube in 35 C air, where natural convection "
+        "gives 5-15 W/m2K (UA 0.13-0.39 W/K). The 105 W therefore does NOT all enter through "
+        "the suction line; the compressor drawing specifies COMPRESSOR COOLING: FAN, and a "
+        "hermetic shell dumps motor and shell heat into the suction gas. This parameter is the "
+        "lumped stand-in for both paths. Do NOT lower it toward the bare-tube value until that "
+        "second path is actually modelled -- it currently reproduces the measured compressor "
+        "inlet to 0.65 K, and a worse match is not an improvement"),
+}
+
 NUM = r"[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?"
 
 
-def declared_values():
-    text = MO.read_text(encoding="utf-8", errors="replace")
+def declared_values(mo_path=None):
+    text = (mo_path or MO).read_text(encoding="utf-8", errors="replace")
     pat = re.compile(
         r"^\s*parameter\s+(?:Real|Integer|Boolean)\s+(\w+)\s*(?:\(unit=\"\w+\"\))?\s*=\s*"
         r"(" + NUM + r"|true|false)", re.M)
@@ -66,9 +83,10 @@ class CalibrationProvenance(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.found = declared_values()
+        cls.found_suction = declared_values(SUCTION_MO)
 
     def test_every_calibrated_parameter_has_a_source(self):
-        for name, (_, source) in {**CALIBRATED, **SWITCHES}.items():
+        for name, (_, source) in {**CALIBRATED, **CALIBRATED_SUCTION, **SWITCHES}.items():
             self.assertTrue(source and len(source) > 15,
                             f"{name} has no usable provenance note")
 
@@ -76,6 +94,24 @@ class CalibrationProvenance(unittest.TestCase):
         for name, (expected, source) in CALIBRATED.items():
             self.assertIn(name, self.found, f"{name} no longer declared in the model")
             got = float(self.found[name])
+            self.assertAlmostEqual(
+                got, float(expected), places=4,
+                msg=(f"\n{name} changed: model has {got}, provenance table has {expected}."
+                     f"\nRecorded source: {source}"
+                     f"\nIf the new value is right, record ITS evidence in "
+                     f"tests/test_calibration_provenance.py -- do not just sync the number."))
+
+    def test_suction_line_values_match_their_recorded_source(self):
+        """Same silent-drift check, for the parameters that live in SuctionLine.mo.
+
+        UA_suction_w_k is the one parameter in this project whose recorded source is a
+        statement about what it is NOT. Geometry alone cannot produce 2.5 W/K, so if this
+        value ever moves, the question to answer is which heat path changed -- not what
+        number closes the gap."""
+        for name, (expected, source) in CALIBRATED_SUCTION.items():
+            self.assertIn(name, self.found_suction,
+                          f"{name} no longer declared in SuctionLine.mo")
+            got = float(self.found_suction[name])
             self.assertAlmostEqual(
                 got, float(expected), places=4,
                 msg=(f"\n{name} changed: model has {got}, provenance table has {expected}."
