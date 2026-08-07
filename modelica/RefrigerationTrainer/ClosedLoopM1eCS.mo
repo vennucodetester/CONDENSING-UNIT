@@ -530,6 +530,7 @@ model ClosedLoopM1eCS
   output Real superheat_k(unit="K") "at the COIL OUTLET - what the TXV controls";
   output Real superheat_comp_k(unit="K") "at the COMPRESSOR INLET - coil superheat plus suction-line gain";
   output Real Q_suction_line_w(unit="W") "ambient heat into the suction line - a LOSS";
+  output Real dp_suction_pa(unit="Pa") "friction pressure drop along the suction line";
   output Real subcooling_k(unit="K");
   output Real m_dot_kg_s(unit="kg/s", start = 4.50e-3);
   output Real Q_evap_w(unit="W");
@@ -787,7 +788,12 @@ equation
   m_dot_circuit_kg_s_1  = m_dot_kg_s;
   m_dot_circuit_kg_s_2  = m_dot_kg_s;
   p_cond_in_pa          = p_discharge_pa;
+  /* p_suction_pa and p_evap_out_pa are BOTH the evaporator outlet and are equal by
+     definition, which is correct -- they are the same physical point. What changed
+     2026-08-06 is that the COMPRESSOR inlet is no longer that point: SuctionLine now
+     imposes a real friction drop, so comp.InFlow.p sits below this by dp_suction_pa. */
   p_evap_out_pa         = p_suction_pa;
+  dp_suction_pa         = suction.dp_suction_pa;
   p_txv_inlet_pa        = p_discharge_pa;
   superheat_circuit_k_1 = superheat_k;
   superheat_circuit_k_2 = superheat_k;

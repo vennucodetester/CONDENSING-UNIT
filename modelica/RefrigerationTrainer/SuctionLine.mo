@@ -57,6 +57,38 @@ model SuctionLine
   parameter Modelica.Units.SI.Mass M_line_kg = 0.0012
     "Refrigerant mass held in the suction line" annotation(Evaluate=false);
 
+  /* ================= PRESSURE DROP, added 2026-08-06 =================
+     WAS `OutFlow.p = InFlow.p` -- the model had a suction line that HEATED the gas by
+     105 W and cost nothing to push through. HANDOFF section 4 records the consequence:
+     of five pressures the app displays, only two were independent, so a technician saw
+     five gauges that were secretly two numbers and pressure drop appeared not to exist.
+
+     Darcy-Weisbach in quadratic form, dP = K*mdot*|mdot|/rho with
+         K = f*L_eq / (2*D*A^2)
+     Geometry is as-built (docs/AS_BUILT_GEOMETRY.md section 1, user-confirmed): 40 in of
+     0.256 in ID with 7 bends. Bends are carried as equivalent length at 30 diameters each,
+     the standard allowance, which nearly doubles the effective length - 1.016 m of straight
+     pipe plus 1.365 m of bend equivalent.
+     At the calibrated 2.9 g/s and rho 4.3 kg/m3 this gives about 8 kPa, i.e. ~1.2 psi,
+     which is an ordinary suction-line drop for this size of line.
+
+     THE DIAMETER IS NOW A LIVE INPUT. dP scales as 1/D^5 at fixed mass flow, so halving
+     the line size raises the drop by ~32x - a strong, visible, teachable effect and the
+     thing task #34 was waiting for.
+     mdot*|mdot| rather than mdot^2 so the law stays correct if flow ever reverses. */
+  parameter Modelica.Units.SI.Length L_suction_m = 1.016 "straight length, 40 in";
+  parameter Modelica.Units.SI.Length D_suction_m = 0.006502 "internal diameter, 0.256 in";
+  parameter Integer n_bends = 7 "bends of various angles";
+  parameter Real bend_L_over_D = 30.0 "equivalent length per bend, in diameters";
+  parameter Real f_darcy = 0.025 "Darcy friction factor, turbulent smooth copper";
+  final parameter Modelica.Units.SI.Area A_suction_m2 =
+    Modelica.Constants.pi/4*D_suction_m^2;
+  final parameter Modelica.Units.SI.Length L_eq_m =
+    L_suction_m + n_bends*bend_L_over_D*D_suction_m;
+  final parameter Real K_dp = f_darcy*L_eq_m/(2*D_suction_m*A_suction_m2^2)
+    "quadratic resistance coefficient";
+  Modelica.Units.SI.Pressure dp_suction_pa "friction drop along the suction line";
+
   parameter Medium.SpecificEnthalpy h_start = 5.7e5
     "Start value for the outlet enthalpy";
 
@@ -76,7 +108,11 @@ equation
   InFlow.m_flow + OutFlow.m_flow = 0;
 
   /* Pressure: no drop, see the header. */
-  OutFlow.p = InFlow.p;
+  /* rho from the line's own state. max() keeps the divide safe if the state ever goes
+     thin during a transient; it does not change the answer in normal operation. */
+  dp_suction_pa = K_dp*InFlow.m_flow*abs(InFlow.m_flow)
+                  / max(0.1, Medium.density_ph(InFlow.p, h));
+  OutFlow.p = InFlow.p - dp_suction_pa;
 
   /* The upstream enthalpy, taken through the stream operator so the component stays
      correct if the flow ever reverses during a transient. */
