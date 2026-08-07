@@ -554,7 +554,30 @@ itself too small is the next question — and `Unom_v` = 200 W/m²K against `Uno
 7.5:1 ratio where R290 physically wants 20–40:1, so the dry zone may be transferring several
 times too much heat.
 
-#### A hypothesis tested and REFUTED — do not re-run it
+#### THE BOX NEEDS TWO CAPACITANCES — the finding that dissolves the cycle-period puzzle
+
+Measured over 33 clean off-blocks:
+
+| channel | OFF start | OFF end | swing |
+|---|---|---|---|
+| Air Into Evap Left | 4.17 F | 9.50 F | +5.33 |
+| Air Out of Evap Left | −8.74 F | −1.90 F | +6.84 |
+| Discharge Air Sensor | −8.53 F | −1.46 F | +7.07 |
+| **AVG Prod Temp** | **0.08 F** | **0.13 F** | **+0.05** |
+
+Every air channel swings 5–7 F in six minutes. **The product moves five hundredths of a
+degree.** That is two thermal masses differing by ~4000×, not one. `C_box` = 1.06e5 J/K sits
+*between* them and therefore matches neither — too heavy to swing like air, too light to hold
+like product. It is why the modelled cycle period is 0.8 min against a measured 22.
+
+**It also dissolves the "7× storage gap".** The ~1100 W of apparent cooling six minutes after
+shutdown, and the 428 kJ no coil store could supply, came from reading an air-temperature
+*split* as coil duty. With the product pinned and the air relaxing between two reservoirs,
+that split is a spatial gradient in a recirculating loop — not heat the coil is producing.
+There was never a gap to close, which is why **frost, coil metal mass and a sensor mismatch
+all failed to close it**. All three were chased and all three are refuted below.
+
+#### Hypotheses tested and REFUTED — do not re-run these
 
 I suspected N=5 was too coarse to resolve the growing dry zone, smearing the capacity penalty.
 Rebuilt at N=10 and swept:
@@ -567,6 +590,14 @@ Rebuilt at N=10 and swept:
 Refining the grid made the penalty **smaller**. The dry fraction is genuinely 10–20 % and N=5
 resolves it. `N` restored to 5, file verified byte-identical to the pre-test backup, gate
 re-run **3/3 at 7/7**.
+
+**Frost supplies the off-cycle energy** — **REFUTED**. The coil never crosses 0 C, so no
+latent heat is available; ice sensible heat alone would need 9–20 kg, enough to block the coil
+solid. **The thermostat reads the wrong sensor** — **REFUTED**, the coil-outlet to
+discharge-air offset is +0.52 F (NSF) / +0.47 F (DOE). **Off-cycle airflow collapses** —
+**REFUTED**, `Case Watts` is +6.4 W *higher* with the compressor off, so the fans keep
+running. **A suction accumulator as an enthalpy clamp** — took the gate to **0/3** and was
+reverted.
 
 #### What still works, for balance
 
