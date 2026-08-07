@@ -85,6 +85,39 @@ model ClosedLoopM1eCS
   parameter Real Q_box_load_btu_hr = 945.1 "Box internal heat load - fans, lights, product [BTU/hr]. 945.1 = the measured 277 W case electrical" annotation(Evaluate=false);
   parameter Real UA_box_w_k = 7.40 "Cabinet heat-leak conductance to ROOM air [W/K]" annotation(Evaluate=false);
   parameter Real C_box_j_k = 1.06e5 "Box thermal capacitance - air, fixture and product [J/K]" annotation(Evaluate=false);
+  /* ================= TWO CAPACITANCES, added 2026-08-06 =================
+     THE MEASUREMENT THAT FORCED THIS. Over 33 clean off-blocks every air channel swings
+     5-7 F in six minutes while AVG Prod Temp moves 0.05 F:
+         Air Into Evap Left   4.17 ->  9.50 F     Air Out of Evap Left  -8.74 -> -1.90 F
+         Discharge Air        -8.53 -> -1.46 F     AVG Prod Temp          0.08 ->  0.13 F
+     Those are two thermal masses differing by orders of magnitude, not one. A single
+     C_box forces the SENSED temperature and the STORED energy to share one time constant,
+     so the model must respond either air-fast or product-slow and cannot do both - which
+     is exactly what the machine does. It is why the modelled cycle period is 0.8 min
+     against a measured 22.
+
+     THE THERMOSTAT SENSES AIR. The product carries the energy. Separating them is the
+     whole point; do not re-lump them.
+
+     DEFAULTS REPRODUCE THE SINGLE-LUMP MODEL EXACTLY, on purpose. C_air + C_prod =
+     C_box_j_k and UA_prod is deliberately huge, so the two nodes are tightly coupled and
+     behave as one 1.06e5 J/K lump. The gate therefore does not move on this commit. All
+     three are Evaluate=false, so CALIBRATION IS A SWEEP WITH NO REBUILD - lower UA_prod
+     to decouple them and the air starts swinging on its own.
+
+     CALIBRATION TARGETS, all measured and none used to tune anything yet: duty 85.0 %,
+     ON 16 min, OFF 6 min, period 22 min, air swing 5-7 F against product swing 0.05 F.
+     Four independent constraints for three parameters. Predict the period before running
+     and score it - the single-lump model gives 0.8 min, so anything near 22 is real.
+
+     CAVEAT ON C_prod, recorded rather than buried: deriving it from the product swing
+     gives ~7.5e6 J/K, which is ~2000 kg of water-equivalent - high for this cabinet. The
+     product sensor may be inside a package and lagging, so that swing is a LOWER bound on
+     the true one and C_prod an UPPER bound. Calibrate against the CYCLE PERIOD, which is
+     robust, not against the 0.05 F swing, which may be sensor-limited. */
+  parameter Real C_air_j_k = 1.8e3 "box AIR capacitance [J/K] - what the thermostat senses" annotation(Evaluate=false);
+  parameter Real C_prod_j_k = 1.042e5 "PRODUCT capacitance [J/K] - where the energy actually goes" annotation(Evaluate=false);
+  parameter Real UA_prod_w_k = 1.0e5 "air-to-product coupling [W/K]. Huge by default = one lump" annotation(Evaluate=false);
   parameter Real T_room_k(unit="K") = 299.71 "ROOM air around the cabinet = 79.8 F MEASURED. NOT T_amb_k, which is the condenser inlet" annotation(Evaluate=false);
 
   parameter Real txv_opening_frac               = 0.50    "TXV nominal design opening fraction 0..1" annotation(Evaluate=false);
@@ -588,6 +621,8 @@ model ClosedLoopM1eCS
   output Real Q_box_load_w(unit="W") "box internal heat load";
   output Real Q_box_leak_w(unit="W") "cabinet heat leak from room air";
   output Real box_imbalance_w(unit="W") "load + leak - Q_evap. Zero at equilibrium";
+  Real T_prod_k(unit="K", start = T_box_k, fixed = true) "product temperature - a STATE, carries the bulk energy";
+  output Real Q_prod_w(unit="W") "air-to-product heat exchange";
 
   output Real T_air_in_evap_k(unit="K");
   output Real T_air_off_evap_k(unit="K");
@@ -770,9 +805,14 @@ equation
      state is always present and the structural index cannot change with the switch. */
   Q_box_load_w = Q_box_load_btu_hr / 3.412142;
   Q_box_leak_w = UA_box_w_k * (T_room_k - T_box_air_k);
+  /* Air node: load, leak and the coil act here, plus exchange with the product.
+     Product node: coupled to the air only. der() is present in BOTH branches of every
+     switch so the structural index never changes with a parameter. */
+  Q_prod_w = UA_prod_w_k * (T_box_air_k - T_prod_k);
   der(T_box_air_k) = if box_thermal_model
-    then (Q_box_load_w + Q_box_leak_w - Q_evap_w) / C_box_j_k
+    then (Q_box_load_w + Q_box_leak_w - Q_evap_w - Q_prod_w) / C_air_j_k
     else 0.0;
+  der(T_prod_k) = if box_thermal_model then Q_prod_w / C_prod_j_k else 0.0;
   box_imbalance_w = Q_box_load_w + Q_box_leak_w - Q_evap_w;
 
   /* Thermostat hysteresis on DISCHARGE air. Held at all times so the variable exists,

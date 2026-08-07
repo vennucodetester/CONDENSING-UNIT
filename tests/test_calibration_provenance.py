@@ -98,6 +98,32 @@ CALIBRATED = {
         "from the measured cycle period: 37 run blocks in 1440 min = ~39 min, so ~5.9 min "
         "off, warming 2 K at 605 W -> 605*351/2 = 1.06e5 J/K. Air is negligible; this is "
         "fixture plus product mass"),
+    # --- two-capacitance box, added 2026-08-06 -------------------------------
+    # Forced by measurement: over 33 clean off-blocks every air channel swings 5-7 F in
+    # six minutes while AVG Prod Temp moves 0.05 F. Two masses, not one. A single C_box
+    # makes the SENSED temperature and the STORED energy share one time constant, so the
+    # model can be air-fast or product-slow but not both - which is what the machine is.
+    # DEFAULTS DELIBERATELY REPRODUCE THE SINGLE LUMP: C_air + C_prod = C_box_j_k and
+    # UA_prod is huge, so the nodes are tightly coupled and nothing changed on the commit
+    # that added them. All three are Evaluate=false, so calibration is a sweep, no rebuild.
+    "C_air_j_k": (
+        1.8e3,
+        "box AIR capacitance, ~1.5 m3 at 1.2 kg/m3 and 1005 J/kgK. This is what the "
+        "thermostat senses and what swings 5-7 F across an off cycle"),
+    "C_prod_j_k": (
+        1.042e5,
+        "PRODUCT capacitance. Default is C_box_j_k minus C_air_j_k so the pair reproduces "
+        "the previous single lump exactly. CAVEAT: deriving it from the measured 0.05 F "
+        "product swing gives ~7.5e6 J/K, about 2000 kg water-equivalent, which is high for "
+        "this cabinet - the product sensor is likely inside a package and lagging, so that "
+        "swing is a LOWER bound and 7.5e6 an UPPER bound. Calibrate against the CYCLE "
+        "PERIOD, which is robust, not against the 0.05 F swing, which may be sensor-limited"),
+    "UA_prod_w_k": (
+        1.0e5,
+        "air-to-product coupling. Huge BY DESIGN so the default behaves as one lump and the "
+        "gate does not move. Lowering it decouples the nodes and is the calibration handle. "
+        "Targets, all measured and none yet used to tune: duty 85.0 %, ON 16 min, OFF 6 min, "
+        "period 22 min - four independent constraints for three parameters"),
     "T_room_k": (
         299.71,
         "79.8 F, the MEASURED room ambient, median across all three campaigns. This is NOT "
