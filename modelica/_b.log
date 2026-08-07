@@ -14,11 +14,11 @@ true
 Warning: ThermoCycle requested package Modelica of version 3.2.1. Modelica 4.1.0 is used instead which states that it is only compatible with a conversion script. Use convertPackageToLibrary(ThermoCycle, Modelica, \"4.1.0\") to run the conversion script or proceed with potential issues as a result.
 "
 "Check of RefrigerationTrainer.ClosedLoopM1eCS completed successfully.
-Class RefrigerationTrainer.ClosedLoopM1eCS has 1193 equation(s) and 1193 variable(s).
-642 of these are trivial equation(s)."
+Class RefrigerationTrainer.ClosedLoopM1eCS has 1204 equation(s) and 1204 variable(s).
+647 of these are trivial equation(s)."
 @@CHK=Check of RefrigerationTrainer.ClosedLoopM1eCS completed successfully.
-Class RefrigerationTrainer.ClosedLoopM1eCS has 1193 equation(s) and 1193 variable(s).
-642 of these are trivial equation(s).@@
+Class RefrigerationTrainer.ClosedLoopM1eCS has 1204 equation(s) and 1204 variable(s).
+647 of these are trivial equation(s).@@
 
 "C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/ClosedLoopM1eCS.fmu"
 @@FMU=C:/Users/silam/OneDrive/Documents/CONDENSING UNIT/modelica/ClosedLoopM1eCS.fmu@@

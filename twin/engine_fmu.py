@@ -17,21 +17,27 @@ class FmuUnavailable(RuntimeError):
     pass
 
 
-FMU_INPUTS = {
-    "evap_airflow_m3_s",
-    "compressor_speed_frac",
-    "condenser_airflow_m3_s",
-    "V_s_cm3",
-    "UA_evap_nom_w_k",
-    "UA_cond_nom_w_k",
-    "superheat_target_k",
-    "T_amb_k",
-    "T_box_k",
-    "txv_opening_frac",
-    "txv_size_frac",
-    "hot_gas_solenoid_open",
-    "liquid_line_solenoid_open",
-}
+"""Every FMU parameter this adapter writes.
+
+DO NOT hand-maintain this as a second list. It is derived from `_start_values()`, which
+is the single place the start-value dict is built, precisely because keeping the two in
+sync by hand is what broke.
+
+THE BUG THIS EXISTS TO PREVENT (found 2026-08-06):
+`run()` sent `evaporator_capacity_frac` and `condenser_capacity_frac`. Neither parameter
+exists in the model. This set did not list them either, so the interface check passed --
+it was validating a list that had drifted away from what was actually sent. FMPy is called
+with `validate=False`, so it dropped both names in silence. The result was two UI sliders
+("Installed size", on the evaporator and condenser cards) that did NOTHING at any
+position, for as long as they had existed, with no error anywhere.
+
+Deriving the set from the dict makes that failure impossible: a name the app sends is a
+name the interface check demands, always.
+"""
+
+
+def _start_value_keys() -> set[str]:
+    return set(FmuEngine._start_values_template())
 
 
 class FmuEngine:
@@ -100,14 +106,18 @@ class FmuEngine:
         # of each variable too, not just that the name exists.
         by_name = {v.name: v for v in description.modelVariables}
 
-        missing_inputs = sorted(FMU_INPUTS - set(by_name))
+        # Derived from _start_values_template(), never hand-listed -- see the note at the
+        # top of this module. Every name the app writes must exist in the FMU, or startup
+        # fails loudly here instead of the value being dropped in silence at run time.
+        fmu_inputs = _start_value_keys()
+        missing_inputs = sorted(fmu_inputs - set(by_name))
         missing_outputs = sorted(
             {self._fmu_name(k) for k in REQUIRED_OUTPUTS} - set(by_name)
         )
 
         shape_problems: list[str] = []
 
-        for name in sorted(FMU_INPUTS & set(by_name)):
+        for name in sorted(fmu_inputs & set(by_name)):
             var = by_name[name]
             if var.causality not in ("input", "parameter"):
                 shape_problems.append(
@@ -155,10 +165,34 @@ class FmuEngine:
                 parts.append("missing outputs: " + ", ".join(missing_outputs))
             raise FmuUnavailable("FMU interface mismatch — " + "; ".join(parts))
 
-    def run(self, engine_input: EngineInput) -> EngineResult:
-        from fmpy import simulate_fmu
+    @staticmethod
+    def _start_values_template() -> dict:
+        """The names this adapter writes, with placeholder values.
 
-        start_values = {
+        `_validate_interface` reads the KEYS of this at startup and `_start_values`
+        fills in the VALUES at run time. One definition, so the interface check can
+        never again pass while the app writes a name the FMU does not have.
+        """
+        return {
+            "evap_airflow_m3_s": 0.0,
+            "compressor_speed_frac": 0.0,
+            "condenser_airflow_m3_s": 0.0,
+            "evaporator_capacity_frac": 0.0,
+            "condenser_capacity_frac": 0.0,
+            "txv_opening_frac": 0.0,
+            "txv_size_frac": 0.0,
+            "hot_gas_solenoid_open": False,
+            "liquid_line_solenoid_open": False,
+            "V_s_cm3": 0.0,
+            "UA_evap_nom_w_k": 0.0,
+            "UA_cond_nom_w_k": 0.0,
+            "superheat_target_k": 0.0,
+            "T_amb_k": 0.0,
+            "T_box_k": 0.0,
+        }
+
+    def _start_values(self, engine_input: EngineInput) -> dict:
+        values = {
             "evap_airflow_m3_s": self.nominal_evap_airflow_m3_s * engine_input.airflow_frac,
             "compressor_speed_frac": engine_input.compressor_speed_frac,
             "condenser_airflow_m3_s": self.nominal_condenser_airflow_m3_s * engine_input.condenser_airflow_frac,
@@ -175,6 +209,22 @@ class FmuEngine:
             "T_amb_k": engine_input.t_amb_k,
             "T_box_k": engine_input.t_box_k,
         }
+        # A key here that the template does not declare would escape the startup
+        # interface check and be dropped in silence by FMPy. Fail instead.
+        drift = set(values) ^ set(self._start_values_template())
+        if drift:
+            raise FmuUnavailable(
+                "start-value keys disagree with _start_values_template(): "
+                + ", ".join(sorted(drift))
+                + ". Add the name to BOTH or neither -- see the note at the top of "
+                  "twin/engine_fmu.py."
+            )
+        return values
+
+    def run(self, engine_input: EngineInput) -> EngineResult:
+        from fmpy import simulate_fmu
+
+        start_values = self._start_values(engine_input)
         try:
             samples = simulate_fmu(
                 str(self.fmu_path),

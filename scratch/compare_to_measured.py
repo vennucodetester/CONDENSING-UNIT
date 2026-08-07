@@ -23,9 +23,18 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from fmpy import simulate_fmu  # noqa: E402
 
+# CLEANED 2026-08-06. Two entries were removed, not changed:
+#     "coil_evap.V_dot_air_m3_s": 0.15
+#     "coil_cond.V_dot_air_m3_s": 0.076
+# Both were INERT and one was actively misleading. `ClosedLoopM1eCS.mo:436-437` binds
+#     coil_evap.V_dot_air_m3_s = evap_airflow_m3_s
+#     coil_cond.V_dot_air_m3_s = condenser_airflow_m3_s
+# as EQUATIONS, so a start value on either is overwritten immediately and cannot affect a
+# result. The condenser entry also read 0.076 while `condenser_airflow_m3_s` beside it read
+# 0.1203 -- the old fan-curve estimate sitting next to the calibrated one, which is exactly
+# the kind of contradiction someone later reads as "the condenser runs at 0.076".
 SV = dict(evap_airflow_m3_s=0.15, condenser_airflow_m3_s=0.1203, txv_opening_frac=0.50,
-          txv_size_frac=1.0, compressor_speed_frac=1.0,
-          **{"coil_evap.V_dot_air_m3_s": 0.15, "coil_cond.V_dot_air_m3_s": 0.076})
+          txv_size_frac=1.0, compressor_speed_frac=1.0)
 K2F = lambda k: (k - 273.15) * 9 / 5 + 32
 
 

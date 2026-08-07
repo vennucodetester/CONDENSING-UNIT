@@ -22,6 +22,71 @@ model ClosedLoopM1eCS
   package Med = ThermoCycle.Media.R290_CP;
 
   /* ---------------- operating inputs ---------------- */
+  /* ================= BOX THERMAL MODEL, added 2026-08-06 =================
+     WHY. T_box_k was a fixed TEMPERATURE, so the evaporator always saw 0 F air no
+     matter what the coil did. Starving the valve made T_evap fall, which RAISED the
+     air-to-refrigerant dT, so the wet cells compensated and capacity barely moved --
+     a real box answers lost capacity by WARMING UP, and that symptom could not exist.
+     See HANDOFF section 4, "THE MODEL HAS NO LOAD".
+
+     Now the load is the INPUT and box temperature is the ANSWER. At equilibrium
+         Q_box_load + UA_box*(T_room - T_box) = Q_evap
+     and the solver finds T_box that satisfies it.
+
+     CALIBRATION IS FROM MEASUREMENT, not chosen. All four numbers below are pinned by
+     the 2026-05-27/28 campaigns plus the calibrated operating point:
+       running capacity        711.9 W at T_box = 255.37 K
+       duty cycle              85 % of samples running -> average heat in = 0.85*711.9 = 605 W
+       case electrical         277 W median `Case Watts`, continuous (it does NOT switch
+                               with the compressor: 276 W on vs 286 W off), so essentially
+                               all of it -- evaporator fans, lights -- lands in the box
+       cabinet leak            605 - 277 = 328 W over a 44.34 K wall dT -> UA_box 7.40 W/K
+       cycle period            37 run blocks in 1440 min -> ~39 min, so ~5.9 min off;
+                               warming 2 K in 351 s at 605 W -> C_box 1.06e5 J/K
+     A 9.8 W/K cabinet UA would follow if the fans were NOT counted as box load; 7.40 is
+     the value consistent with the measured duty cycle, which is the stronger constraint.
+
+     T_room_k IS NOT T_amb_k, AND THIS MATTERS. T_amb_k = 308.04 K is the CONDENSER INLET,
+     which the 2026-08-06 recirculation finding showed runs 8-16 F above room air on all
+     three campaigns. The cabinet leaks to the ROOM at 79.8 F = 299.71 K. Using 308.04 here
+     would overstate the leak by 8.33 K of driving temperature, about 62 W. HANDOFF section 4
+     warns explicitly against reusing T_amb_k for anything that sees room air. */
+  /* ================= THERMOSTAT, added 2026-08-06 =================
+     THE SETPOINTS ARE MEASURED, NOT CHOSEN. The user confirmed the controller works off
+     DISCHARGE AIR, which the wiring diagram corroborates - a `Discharge Air` sensor runs
+     into the Carel iJFPSA. Extracted from `Discharge Air Sensor` at every compressor
+     transition in the 2026-05-27/28 campaigns, defrost samples excluded:
+                     cut-out (stops)  cut-in (starts)  diff    ON     OFF    duty
+         NSF          -8.50 F          -2.55 F         5.95 F  16 min 6 min  85.0 %
+         DOE          -8.26 F          -2.62 F         5.64 F  16 min 6 min  85.1 %
+     Two independent campaigns agreeing to 0.25 F on both setpoints. 250.65 K = -8.5 F,
+     253.95 K = -2.55 F.
+
+     IT ACTS ON T_air_off_evap_k, NOT ON THE BOX STATE. That is the real machine's wiring
+     and it matters dynamically: with the compressor off, Q_evap falls and discharge air
+     rises toward return air through the coil's own thermal mass. That transient IS the
+     6 min off period and it is what sets the cycle rate. Controlling on the box state
+     instead would make the off period depend on C_box, which is the wrong physics.
+
+     `pre()` gives the hysteresis its memory: run while above cut-out, restart once above
+     cut-in. Without pre() this is an algebraic loop with no solution at the setpoints. */
+  parameter Boolean box_thermostat = false "true: compressor cycles on discharge-air temperature" annotation(Evaluate=false);
+  parameter Real T_cutout_k(unit="K") = 250.65 "compressor STOPS below this discharge-air temp = -8.5 F MEASURED" annotation(Evaluate=false);
+  parameter Real T_cutin_k(unit="K")  = 253.95 "compressor RESTARTS above this discharge-air temp = -2.55 F MEASURED" annotation(Evaluate=false);
+  Boolean comp_on(start = true, fixed = true) "thermostat contact state";
+  output Real comp_run(start = 1.0, fixed = true) "1 when the compressor is energised, 0 when the thermostat has cut out";
+  parameter Real tau_comp_s = 2.0 "compressor spin-up / spin-down time constant [s]" annotation(Evaluate=false);
+  final parameter Real T_cutout_eff_k = if box_thermostat then T_cutout_k else 0.0
+    "cut-out actually used; 0 K when the thermostat is off, so the relation never fires";
+  final parameter Real T_cutin_eff_k = if box_thermostat then T_cutin_k else 0.0
+    "cut-in actually used; 0 K when the thermostat is off, so comp_on stays closed";
+
+  parameter Boolean box_thermal_model = false "true: T_box is a STATE driven by the heat load. false: legacy fixed T_box, preserved so every prior result reproduces" annotation(Evaluate=false);
+  parameter Real Q_box_load_btu_hr = 945.1 "Box internal heat load - fans, lights, product [BTU/hr]. 945.1 = the measured 277 W case electrical" annotation(Evaluate=false);
+  parameter Real UA_box_w_k = 7.40 "Cabinet heat-leak conductance to ROOM air [W/K]" annotation(Evaluate=false);
+  parameter Real C_box_j_k = 1.06e5 "Box thermal capacitance - air, fixture and product [J/K]" annotation(Evaluate=false);
+  parameter Real T_room_k(unit="K") = 299.71 "ROOM air around the cabinet = 79.8 F MEASURED. NOT T_amb_k, which is the condenser inlet" annotation(Evaluate=false);
+
   parameter Real txv_opening_frac               = 0.50    "TXV nominal design opening fraction 0..1" annotation(Evaluate=false);
   /* LT application, user-confirmed 2026-08-03. Was 278.15 K (5 C) - a MEDIUM-temp
      value, while NEXT_STEPS specifies the LOW-temp machine. That mismatch made every
@@ -66,6 +131,25 @@ model ClosedLoopM1eCS
   parameter Real V_s_cm3                        = 20.0    "Compressor swept volume [cm3/rev] - ALX440U-DS3B01" annotation(Evaluate=false);
   parameter Real UA_evap_nom_w_k                = 132.8   "Evaporator air-side conductance at design airflow [W/K]" annotation(Evaluate=false);
   parameter Real UA_cond_nom_w_k                = 575.0   "Condenser air-side conductance at design airflow [W/K]" annotation(Evaluate=false);
+  /* ADDED 2026-08-06. These two are the app's "Installed size" controls
+     (app.py evaporator/condenser cards). twin/engine_fmu.py had been sending both names
+     on every run while NEITHER existed in this model; FMPy is called with validate=False
+     so it dropped them in silence, and the sliders did nothing at any position for as
+     long as they had existed.
+
+     "Installed size" is interpreted as a multiplier on the coil's AIR-SIDE CONDUCTANCE.
+     A physically bigger coil has more face area and more fin surface, and UA is the term
+     that carries both. This is deliberately NOT a change to V or A_tot: those set the
+     refrigerant charge inventory and the wetted area, and scaling them would silently
+     move the charge distribution and the calibrated subcooling. A UA multiplier is the
+     honest minimum, and its limitation is stated rather than hidden -- it models a coil
+     with more surface, not a coil with more internal volume.
+
+     Safe to raise: CoilAirSide uses the bounded exponential effectiveness
+     eff = 1 - exp(-UA_cell/C_air), which is monotone in UA. The old mean-temperature law
+     went oscillatory above NTU_cell 2 and would have made this control dangerous. */
+  parameter Real evaporator_capacity_frac       = 1.0     "Evaporator installed size, multiplies air-side UA" annotation(Evaluate=false);
+  parameter Real condenser_capacity_frac        = 1.0     "Condenser installed size, multiplies air-side UA" annotation(Evaluate=false);
   parameter Boolean hot_gas_solenoid_open       = false   "Hot gas solenoid valve state" annotation(Evaluate=false);
   parameter Boolean liquid_line_solenoid_open   = true    "Liquid line solenoid valve state" annotation(Evaluate=false);
   /* 2.0 -> 60.0 (2026-08-03). A thermostatic bulb is a lump of copper strapped to a
@@ -289,8 +373,8 @@ model ClosedLoopM1eCS
        PREDICTION (compressor curve vs coil UA): T_evap ~ -26 to -24 C, capacity
        730-800 W. Range not point: actual airflow (0.15) exceeds the sheet's 0.118, so
        UA scales up by (0.15/0.118)^0.8 ~ 1.21. Today: -36.0 C, 282 W. */
-    N = N, V_dot_air_nom = 0.118, UA_air_nom = UA_evap_nom_w_k, A_tot = 0.572,  /* = Flow1DimCS.A */
-    T_air_in_k = T_box_k);
+    N = N, V_dot_air_nom = 0.118, UA_air_nom = UA_evap_nom_w_k*evaporator_capacity_frac, A_tot = 0.572,  /* = Flow1DimCS.A */
+    T_air_in_k = T_box_air_k);
 
   CoilAirSide coil_cond(
     /* UA_air_nom 51.32 -> 262 (2026-08-03). 51.32 was fitted against the coil while its
@@ -315,7 +399,7 @@ model ClosedLoopM1eCS
        the refrigerant, impossible. Do not fit UA_evap to it until that is resolved.
        PREDICTION: T_cond 60.4 -> ~45 C, subcooling 16.7 -> lower, capacity up, and D11
        should recover (it broke because the condenser could no longer build head). */
-    N = N, V_dot_air_nom = 0.076, UA_air_nom = UA_cond_nom_w_k, A_tot = 0.42,  /* = Flow1DimCS.A */
+    N = N, V_dot_air_nom = 0.076, UA_air_nom = UA_cond_nom_w_k*condenser_capacity_frac, A_tot = 0.42,  /* = Flow1DimCS.A */
     T_air_in_k = T_amb_k);
 
   /* WallTemperatureSource preserved for isolation testing (Senior Engineer Rule 1) */
@@ -341,8 +425,13 @@ model ClosedLoopM1eCS
      mdot_nom (refrigerant-side U, 1.49x -> +2 W), UA_evap_nom_w_k (air-side, 2.26x ->
      +13 W) and UA_cond_nom_w_k (1.57x -> -0.9 K) all failed to move anything that the
      evaporator could be ruled out and the compressor became the only candidate left. */
-  Modelica.Mechanics.Rotational.Sources.ConstantSpeed drive(
-    w_fixed = 2*Modelica.Constants.pi*58.33*compressor_speed_frac);
+  /* CHANGED 2026-08-06: ConstantSpeed -> signal-driven Speed. `w_fixed` is a PARAMETER
+     and therefore cannot be switched at run time, so a thermostat was impossible without
+     this. With box_thermostat = false, comp_run is identically 1 and this is the same
+     constant speed as before -- verified by the gate, not assumed. */
+  Modelica.Mechanics.Rotational.Sources.Speed drive(exact = true);
+  Modelica.Blocks.Sources.RealExpression driveSpeed(
+    y = 2*Modelica.Constants.pi*58.33*compressor_speed_frac*comp_run);
 
   /* ---------------- NAMED RESIDUALS (the point of this model) ----------
      Each is a separately-reported error term. Do NOT collapse them into a
@@ -381,6 +470,20 @@ model ClosedLoopM1eCS
   output Real W_comp_w(unit="W");
   output Real cop(unit="1");
   output Real M_charge_kg(unit="kg") "total refrigerant mass held in both coils";
+  /* ADDED 2026-08-06. M_charge_kg is the SUM, and because this model holds exactly two
+     volumes with no compressor or valve holdup, that sum is the entire closed inventory
+     and is therefore a CONSERVATION INVARIANT -- it reads the same in every sweep and
+     always will. It cannot show charge MIGRATING, which is the quantity anyone asking a
+     charge question actually wants. These two split it. */
+  output Real M_evap_kg(unit="kg") "refrigerant mass held in the evaporator";
+  output Real M_cond_kg(unit="kg") "refrigerant mass held in the condenser";
+  /* Box thermal model outputs. box_imbalance_w is the equilibrium residual: at a settled
+     operating point it is ZERO, and its sign says which way the box is drifting. It is
+     reported rather than driven, in the same spirit as the other named residuals. */
+  Real T_box_air_k(unit="K", start = T_box_k, fixed = true) "air entering the evaporator - a STATE when box_thermal_model = true";
+  output Real Q_box_load_w(unit="W") "box internal heat load";
+  output Real Q_box_leak_w(unit="W") "cabinet heat leak from room air";
+  output Real box_imbalance_w(unit="W") "load + leak - Q_evap. Zero at equilibrium";
 
   output Real T_air_in_evap_k(unit="K");
   output Real T_air_off_evap_k(unit="K");
@@ -437,6 +540,7 @@ equation
   coil_cond.V_dot_air_m3_s = condenser_airflow_m3_s;
 
   connect(txvCmd.y, txv.cmd);
+  connect(driveSpeed.y, drive.w_ref);
   connect(drive.flange, comp.flange_elc);
 
   /* Proportional TXV Control Law with bulb time constant & stroke limits: A = clamp(A_ref + Kp*(SH - SH_target), A_min, A_max) */
@@ -551,9 +655,54 @@ equation
   W_comp_w   = comp.W_dot;
   cop        = Q_evap_w / max(W_comp_w, 1.0);
   M_charge_kg = evap.M_tot + cond.M_tot;
+  M_evap_kg   = evap.M_tot;
+  M_cond_kg   = cond.M_tot;
+
+  /* Box energy balance. With box_thermal_model = false the derivative is identically
+     zero, so T_box_air_k holds its start value T_box_k and the model is bit-for-bit the
+     legacy one. Written this way rather than as an if/else on the EQUATION so that the
+     state is always present and the structural index cannot change with the switch. */
+  Q_box_load_w = Q_box_load_btu_hr / 3.412142;
+  Q_box_leak_w = UA_box_w_k * (T_room_k - T_box_air_k);
+  der(T_box_air_k) = if box_thermal_model
+    then (Q_box_load_w + Q_box_leak_w - Q_evap_w) / C_box_j_k
+    else 0.0;
+  box_imbalance_w = Q_box_load_w + Q_box_leak_w - Q_evap_w;
+
+  /* Thermostat hysteresis on DISCHARGE air. Held at all times so the variable exists,
+     but forced permanently closed when box_thermostat = false, which is the legacy path. */
+  /* CORRECTED 2026-08-06. This was written as a plain equation
+         comp_on = if pre(comp_on) then T_air_off_evap_k > T_cutout_k else ...
+     and it DID NOT FIRE. Verified, not assumed: discharge air sat at -11.6 F for a full
+     6000 s run -- 3.1 F BELOW the -8.5 F cut-out -- and comp_run never left 1. A discrete
+     variable assigned outside a `when` does not generate the state events the relation
+     needs, so the condition was only ever evaluated at initialisation. (That it fired at
+     all was proved separately: forcing T_cutout_k to 265 K broke initialisation.)
+     `when/elsewhen` is the idiomatic construct and generates the crossings properly. */
+  /* CORRECTED AGAIN 2026-08-06. The guard used to be inside the event condition:
+         when {box_thermostat and T_air_off_evap_k < T_cutout_k}
+     and CVode failed with "code -12, cvRcheck3: rootfinding failed in an unrecoverable
+     manner" at the first crossing. ANDing a Boolean parameter into the condition makes
+     the root function discontinuous, and the crossing detector cannot bracket a root in
+     a function that jumps. The parameter now selects the SETPOINTS instead, leaving each
+     root function a plain smooth relation on one continuous variable.
+     With box_thermostat = false the setpoints become 0 K: `T < 0` is never true so the
+     compressor never stops, and `T > 0` is always true so comp_on stays closed. Legacy
+     behaviour, with no Boolean anywhere near a zero crossing. */
+  when T_air_off_evap_k < T_cutout_eff_k then
+    comp_on = false;
+  elsewhen T_air_off_evap_k > T_cutin_eff_k then
+    comp_on = true;
+  end when;
+
+  /* Spin-up / spin-down lag. Handing the solver a step from full speed to zero is
+     brutal -- mass flow collapses in one step and CompressorEM.mo:247 already aborts on
+     a starved compressor. A 2 s first-order lag is also physically honest: a hermetic
+     motor takes a second or two to spin down against the pressure it is holding. */
+  tau_comp_s * der(comp_run) + comp_run = (if comp_on then 1.0 else 0.0);
 
   /* Additional FMI 2.0 outputs */
-  T_air_in_evap_k       = T_box_k;
+  T_air_in_evap_k       = T_box_air_k;
   T_air_off_evap_k      = coil_evap.T_air_off_k;
   T_air_off_cond_k      = coil_cond.T_air_off_k;
   /* 2026-08-04: now the COMPRESSOR INLET, i.e. downstream of the suction line, which is

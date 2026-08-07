@@ -41,6 +41,69 @@ CALIBRATED = {
     # Operating inputs -- nominal positions the comparison is scored at.
     "txv_opening_frac":       (0.50,    "nominal screw position; the comparison in scratch/compare_to_measured.py is scored here"),
     "txv_size_frac":          (1.0,     "nominal valve size; Afull 9.6e-8 m2 from the installed element"),
+    "tau_comp_s": (
+        2.0,
+        "compressor spin-up / spin-down time constant. Added 2026-08-06 with the thermostat "
+        "so the solver is not handed a step from full speed to zero when the contact opens. "
+        "Physically honest as well as numerically necessary: a hermetic motor takes a second "
+        "or two to spin down against the pressure it is holding. NOT fitted to anything, and "
+        "it does NOT rescue the off-cycle -- the compressor still cannot reach zero flow "
+        "(task #31), because the problem is the endpoint, not the rate"),
+    # --- thermostat, added 2026-08-06. Both setpoints are MEASURED. -----------
+    # From `Discharge Air Sensor` at every compressor transition in the 2026-05-27/28
+    # campaigns, defrost excluded. NSF -8.50 / -2.55 F, DOE -8.26 / -2.62 F: two
+    # independent campaigns agreeing to 0.25 F on both. Median ON 16 min, OFF 6 min,
+    # duty 85.0 / 85.1 %. The controller acts on DISCHARGE air, confirmed by the user
+    # and corroborated by the wiring diagram's Discharge Air sensor into the Carel iJFPSA.
+    "T_cutout_k": (250.65, "-8.50 F, MEASURED discharge-air temperature at compressor stop, "
+                           "35 transitions on NSF and 37 on DOE"),
+    "T_cutin_k":  (253.95, "-2.55 F, MEASURED discharge-air temperature at compressor start, "
+                           "34 transitions on NSF and 36 on DOE. Differential 3.3 K"),
+    # --- box thermal model, added 2026-08-06 ---------------------------------
+    # Every one of these is pinned by measurement, not chosen. Running capacity is
+    # 711.9 W at T_box 255.37 K; the 2026-05-27/28 campaigns give 85 % duty and a
+    # ~39 min cycle, and `Case Watts` is 277 W continuously (276 on vs 286 off, so it
+    # does NOT switch with the compressor). Average heat in = 0.85 * 711.9 = 605 W.
+    "Q_box_load_btu_hr": (
+        945.1,
+        "= the measured 277 W of continuous case electrical (evaporator fans, lights), "
+        "converted at 3.412142 BTU/hr per W. It does not switch with the compressor, so "
+        "essentially all of it lands in the box as a standing load"),
+    "UA_box_w_k": (
+        7.40,
+        "cabinet leak = average heat in minus case electrical = 605 - 277 = 328 W, over a "
+        "44.34 K wall dT (255.37 K box to 299.71 K ROOM). Note 9.8 W/K would follow if the "
+        "fans were NOT counted as box load; 7.40 is the value consistent with the MEASURED "
+        "85 % duty cycle, which is the stronger constraint"),
+    "C_box_j_k": (
+        1.06e5,
+        "from the measured cycle period: 37 run blocks in 1440 min = ~39 min, so ~5.9 min "
+        "off, warming 2 K at 605 W -> 605*351/2 = 1.06e5 J/K. Air is negligible; this is "
+        "fixture plus product mass"),
+    "T_room_k": (
+        299.71,
+        "79.8 F, the MEASURED room ambient, median across all three campaigns. This is NOT "
+        "T_amb_k = 308.04 K, which is the CONDENSER INLET and runs 8-16 F above room air "
+        "because the coil ingests recirculation (HANDOFF section 3). The cabinet leaks to "
+        "the room. Using T_amb_k here would overstate the leak by 8.33 K of driving dT, "
+        "about 62 W"),
+    "evaporator_capacity_frac": (
+        1.0,
+        "ADDED 2026-08-06. The app's evaporator 'Installed size' control. It had been SENT "
+        "by twin/engine_fmu.py while no such parameter existed here, and FMPy (validate=False) "
+        "dropped it silently, so the slider was inert at every position. Interpreted as a "
+        "multiplier on air-side UA: a physically larger coil has more face and fin area, and "
+        "UA carries both. Deliberately NOT applied to V or A_tot, which set charge inventory "
+        "and wetted area -- scaling those would move the calibrated subcooling invisibly. "
+        "Default 1.0 reproduces every prior result exactly"),
+    "condenser_capacity_frac": (
+        1.0,
+        "ADDED 2026-08-06, same defect and same treatment as evaporator_capacity_frac: sent by "
+        "the app, absent from the model, silently dropped. Multiplies condenser air-side UA. "
+        "Safe to raise because CoilAirSide uses the bounded exponential effectiveness "
+        "1 - exp(-UA_cell/C_air), monotone in UA; the superseded mean-temperature law went "
+        "oscillatory above NTU_cell 2 and would have made this control unsafe. "
+        "Default 1.0 reproduces every prior result exactly"),
     "compressor_speed_frac":  (1.0,     "nominal speed = 58.33 rev/s (3500 rpm), from the measured 122.9 V 60 Hz supply"),
 }
 
@@ -50,6 +113,20 @@ SWITCHES = {
     "txv_setpoint_lever":        (True,  "ON since 2026-08-06, user-approved. The thermostatic element whose screw moves the SETPOINT: coil superheat 8.19 -> 2.56 K against a measured 1.27 K. It was defaulted OFF for one day because it returned 5/6 on test_more_mass_flow_raises_discharge_pressure, whose claim turned out to be the thing that was wrong: at fixed displacement the COMPRESSOR sets mass flow, so that test now drives compressor_speed_frac. The valve keeps its own test on superheat setpoint tracking. Legacy law still reachable at false"),
     "hot_gas_solenoid_open":     (False, "nominal steady running state, solenoid as found in the measured windows"),
     "liquid_line_solenoid_open": (True,  "nominal steady running state, solenoid as found in the measured windows"),
+    "box_thermostat": (
+        False,
+        "OFF by default 2026-08-06 so the legacy always-running path is preserved. When TRUE "
+        "the compressor cycles on DISCHARGE-air temperature between the measured -8.5 F "
+        "cut-out and -2.55 F cut-in. Requires box_thermal_model = true to be meaningful, "
+        "because with a fixed box temperature there is nothing for the thermostat to chase"),
+    "box_thermal_model": (
+        False,
+        "OFF by default 2026-08-06 so every prior result reproduces bit-for-bit -- the same "
+        "discipline as txv_setpoint_lever and CoilAirSide.counterflow. When TRUE, T_box_air_k "
+        "becomes a STATE driven by (load + cabinet leak - Q_evap), so the heat load is the "
+        "INPUT and box temperature is the ANSWER. Turning it on changes what the model IS: the "
+        "fixed T_box_k boundary is precisely why starving the valve barely moved capacity -- "
+        "T_evap fell, the air-side dT ROSE, and the wet cells compensated. A real box warms"),
 }
 
 # Calibrated parameters that live OUTSIDE ClosedLoopM1eCS.mo. Same rule, same table.
@@ -127,6 +204,51 @@ class CalibrationProvenance(unittest.TestCase):
                 got, expected,
                 msg=(f"\n{name} default flipped to {got}. This changes what the model IS."
                      f"\nRecorded reason for {expected}: {source}"))
+
+    def test_app_defaults_match_the_models_own_defaults(self):
+        """The app must not silently run the model at an unvalidated operating point.
+
+        WHY (found 2026-08-06). `EngineInput` carries a comment saying "Defaults are the
+        model's own values, so an EngineInput() with none of these set reproduces the
+        previous behaviour exactly". That was true when written on 2026-08-03 and became
+        false when the model was recalibrated:
+
+            superheat_target_k   app 7.0     model 1.27    (measured coil-outlet, trap 2)
+            t_amb_k              app 305.15  model 308.04  (measured Air Into Cond Right)
+
+        Nothing tied the two together, so every number the app displayed came from an
+        operating point no validation covered -- while `scratch/compare_to_measured.py`,
+        which overrides neither, reported the model as inside the measured band.
+
+        This test is the tie. If a calibrated value moves in the `.mo`, the app's default
+        must move with it or this fails.
+        """
+        from twin.engine_base import EngineInput
+
+        pairs = {
+            "superheat_target_k": "superheat_target_k",
+            "t_amb_k": "T_amb_k",
+            "t_box_k": "T_box_k",
+            "v_s_cm3": "V_s_cm3",
+            "ua_evap_nom_w_k": "UA_evap_nom_w_k",
+            "ua_cond_nom_w_k": "UA_cond_nom_w_k",
+            "txv_opening_frac": "txv_opening_frac",
+            "txv_size_frac": "txv_size_frac",
+            "evaporator_capacity_frac": "evaporator_capacity_frac",
+            "condenser_capacity_frac": "condenser_capacity_frac",
+            "compressor_speed_frac": "compressor_speed_frac",
+        }
+        defaults = EngineInput()
+        for app_field, mo_param in pairs.items():
+            self.assertIn(mo_param, self.found,
+                          f"{mo_param} is not declared in ClosedLoopM1eCS.mo")
+            self.assertAlmostEqual(
+                getattr(defaults, app_field), float(self.found[mo_param]), places=4,
+                msg=(f"\nEngineInput.{app_field} = {getattr(defaults, app_field)} but the "
+                     f"model declares {mo_param} = {self.found[mo_param]}."
+                     f"\nThe app would run the FMU at a point the calibration does not "
+                     f"cover. Change the app default, or -- if the divergence is "
+                     f"deliberate -- record WHY here rather than deleting the pair."))
 
     def test_no_calibrated_parameter_escaped_the_table(self):
         """A new tunable parameter must be added here deliberately, so that adding one

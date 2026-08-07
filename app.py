@@ -789,7 +789,17 @@ CONTROL_UNITS: dict[str, dict] = {
     "compressor_speed_frac":  dict(kind="frac", unit="RPM", nominal=3500.0, lo=0.50, hi=1.20, dp=0),
     "condenser_airflow_frac": dict(kind="frac", unit="CFM", nominal=255.0,  lo=0.40, hi=1.20, dp=0),
     "airflow_frac":           dict(kind="frac", unit="CFM", nominal=318.0,  lo=0.40, hi=1.20, dp=0),
-    "txv_opening_frac":       dict(kind="frac", unit="% screw", nominal=100.0, lo=0.20, hi=1.00, dp=0),
+    # BOUNDS CORRECTED 2026-08-06. Was lo=0.20, hi=1.00, of which only 47 % did anything:
+    #   below 0.30  the FMU ABORTS (CompressorEM.mo:247, discharge enthalpy out of range).
+    #               Bisected in scratch/bisect_txv_min.py: 0.30 runs, 0.25 and 0.20 fail.
+    #               The app caught that as FmuUnavailable and silently fell back to the demo
+    #               engine, so moving the slider to its own end stop swapped the physics out
+    #               from under the operator with no message.
+    #   above 0.628 the superheat setpoint hits its max(0.5, ...) floor in
+    #               ClosedLoopM1eCS.mo:528, so the top 46 % of the travel was DEAD.
+    # The range below is the part that is both reachable and live: superheat runs
+    # 3.11 K at 0.30 down to 1.17 K at 0.628, monotonically.
+    "txv_opening_frac":       dict(kind="frac", unit="% screw", nominal=100.0, lo=0.30, hi=0.63, dp=0),
     "txv_size_frac":          dict(kind="frac", unit="mm2 orifice", nominal=0.096, lo=0.70, hi=1.30, dp=3),
     # absolute engine values
     "v_s_cm3":            dict(kind="direct", unit="cm3/rev", lo=8.0,   hi=40.0,  dp=1),
@@ -1347,8 +1357,11 @@ class MainWindow(QMainWindow):
             "v_s_cm3": 20.0,
             "ua_evap_nom_w_k": 132.8,
             "ua_cond_nom_w_k": 575.0,
-            "superheat_target_k": 7.0,
-            "t_amb_k": 305.15,
+            # CORRECTED 2026-08-06 to the model's calibrated values; see the note in
+            # twin/engine_base.py EngineInput. Was 7.0 / 305.15, which put the whole UI
+            # at an operating point no validation covered.
+            "superheat_target_k": 1.27,
+            "t_amb_k": 308.04,
             "t_box_k": 255.37,
             "hot_gas_solenoid_open": False,
             "liquid_line_solenoid_open": True,

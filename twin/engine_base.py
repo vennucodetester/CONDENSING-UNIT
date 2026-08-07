@@ -55,13 +55,26 @@ class EngineInput:
     txv_size_frac: float = 1.0
     hot_gas_solenoid_open: bool = False
     liquid_line_solenoid_open: bool = True
-    # Exposed 2026-08-03. Defaults are the model's own values, so an EngineInput()
-    # with none of these set reproduces the previous behaviour exactly.
+    # Exposed 2026-08-03. These MUST equal the model's own declared defaults --
+    # tests/test_calibration_provenance.py::test_app_defaults_match_the_models_own_defaults
+    # enforces it. Do not edit one side alone.
+    #
+    # CORRECTED 2026-08-06. The original comment claimed these were the model's values.
+    # That was true when written and went stale when the model was recalibrated, with
+    # nothing tying the two together:
+    #   superheat_target_k  7.0    -> 1.27    the MEASURED coil-outlet superheat
+    #                                          (HANDOFF section 3, trap 2). A 5.5x error on
+    #                                          the single most important TXV setting.
+    #   t_amb_k             305.15 -> 308.04  measured `Air Into Cond Right`.
+    # Until this was fixed, every number the app displayed came from an operating point
+    # no validation covered, while scratch/compare_to_measured.py -- which overrides
+    # neither -- reported the model as inside the measured band. The two were not looking
+    # at the same model.
     v_s_cm3: float = 20.0                 # compressor swept volume, cm3/rev
     ua_evap_nom_w_k: float = 132.8        # evaporator air-side conductance, W/K
     ua_cond_nom_w_k: float = 575.0        # condenser air-side conductance, W/K
-    superheat_target_k: float = 7.0       # TXV superheat setpoint, K
-    t_amb_k: float = 305.15               # ambient air at the condenser, K
+    superheat_target_k: float = 1.27      # TXV superheat setpoint, K -- MEASURED
+    t_amb_k: float = 308.04               # ambient air at the condenser, K -- MEASURED
     t_box_k: float = 255.37               # return air at the evaporator, K
     # The modelled system is ONE complete, self-contained unit — its own compressor,
     # condenser and evaporator. Nothing is shared or externally imposed. See SCOPE 13.1.

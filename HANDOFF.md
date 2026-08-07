@@ -329,11 +329,259 @@ it; it reduces to the same proportional law with the gain pinned by property dat
 ~0.25 /K. **The gain was never the free variable — the lever was attached to the wrong
 place.**
 
-### "Why doesn't superheat move when I change other things?" — asked 2026-08-06, answered
+### "The model is like a tank" — asked 2026-08-06. THE USER IS RIGHT. Read this before §5.
 
-Because the TXV is a **working superheat controller**, and that is what one does. Verified by
-sweeping the setpoint rather than by argument (`scratch/probe_superheat_authority.py`, no
-rebuild):
+The operator's complaint was that extreme slider moves barely change anything, unlike the
+lab. It is correct, it is not one problem, and the first answer given below was too
+generous — it swept `superheat_target_k`, which **is not a slider**, and so answered a
+question nobody asked. `scratch/probe_app_control_authority.py` sweeps the controls the app
+actually exposes, to the limits `app.py` itself allows. Four separate defects:
+
+**1. The model is ONE-SIDED. Reducing capacity works; increasing it does almost nothing.**
+
+| control | change at MIN | change at MAX | ratio |
+|---|---|---|---|
+| compressor speed | Q_evap **−285 W** | Q_evap **+89 W** | 3.2× |
+| evaporator airflow | Q_evap **−171 W** | Q_evap **+29 W** | 5.8× |
+| condenser airflow | T_cond **+8.22 K** | T_cond **−0.94 K** | 8.7× |
+| TXV size | SH **+9.93 K** | SH **−0.38 K** | 26× |
+
+That is a **saturation signature**: at baseline the system already sits against a limit in
+the more-capacity direction, so adding airflow, speed or valve area extracts nothing. It is
+consistent with the lead in §5 — refrigerant-side coefficients at 56 % of nominal — and with
+a coil already nearly flooded at 1.93 K superheat. **This is the headline defect.**
+
+**2. Superheat is pinned for every normal control move.** It shifts ≤ 0.4 K across all four
+airflow and speed extremes, and only breaks loose (+11.8 K at `T_box` +10 K, +9.9 K at TXV
+size 0.70) when the valve runs **out of stroke**. Cause is the proportional band, below.
+
+**3. Two sliders were wired to nothing — FIXED 2026-08-06.** `evaporator_capacity_frac` and
+`condenser_capacity_frac` (the "Installed size" controls) were sent by `twin/engine_fmu.py`
+while neither existed in the model; `validate=False` meant FMPy dropped them in silence.
+Both now exist as air-side UA multipliers. The **class** fix matters more: the adapter had two
+sources of truth — a hand-maintained `FMU_INPUTS` set and a separate dict inside `run()` — and
+they had drifted. There is now one `_start_values_template()`, and the interface check derives
+from it, so a name the app sends is a name the FMU must have.
+
+**4. A slider endpoint crashed the solver — FIXED 2026-08-06.** `txv_opening_frac` bisected:
+0.30 runs, 0.25 and 0.20 abort (`CompressorEM.mo:247`). Bounds changed from 0.20–1.00 to
+**0.30–0.63**, which closes both dead ends at once — below 0.30 it crashed, above 0.628 it was
+dead travel. Only 47 % of that slider used to do anything; all of it now does.
+
+**5. THE APP RAN AN UNVALIDATED OPERATING POINT — FIXED 2026-08-06.** `EngineInput` defaulted
+`superheat_target_k` = **7.0** against the model's calibrated **1.27**, and `t_amb_k` = 305.15
+against **308.04**. Its comment claimed the defaults were the model's own values — true when
+written 2026-08-03, false after recalibration, with nothing tying them together. So the app
+and `compare_to_measured.py` were validating and displaying **different operating points**.
+Measured size of the error:
+
+| | SH | T_evap | T_cond | mdot | Q_evap | COP |
+|---|---|---|---|---|---|---|
+| app OLD | 7.63 K | −28.88 C | 43.70 C | 2.77 | 723.0 W | 1.64 |
+| calibrated | 1.93 K | −27.69 C | 46.65 C | 2.90 | 711.9 W | 1.55 |
+| **difference** | **+5.70** | −1.19 | **−2.95** | −0.14 | +11.1 | +0.09 |
+
+Capacity was barely affected (+1.6 %). **Superheat was not** — the app showed 7.63 K where the
+machine measures 1.27 K, i.e. a coil with a large superheated zone where the real one runs
+nearly flooded. `tests/test_calibration_provenance.py::test_app_defaults_match_the_models_own_defaults`
+now ties 11 app defaults to their `.mo` counterparts so this cannot drift again.
+
+#### The TXV proportional band is ~1.9 K — this is why superheat feels locked
+
+From the law at `ClosedLoopM1eCS.mo:528-534`, full stroke 0.05→1.00 is spanned by a superheat
+error of `0.95/gain` either side of zero:
+
+| `txv_gain_per_k` | band |
+|---|---|
+| 0.25 (property-derived) | 3.80 K |
+| **0.50 (current)** | **1.90 K** |
+| 1.00 | 0.95 K |
+| 2.00 | 0.47 K |
+
+A real TXV's static plus opening superheat totals 4–8 K over full stroke, so the model's valve
+is **2–4× stiffer than the hardware**, and a high-gain proportional controller pins its
+controlled variable by construction. Note the direction calibration pushed: the provenance
+entry records that gains 1.0 and 2.0 "fit better" on settled superheat — both *stiffer* still.
+**Fitting superheat drove the model toward being a tank.**
+
+**46 % of the TXV screw slider is dead travel.** `SH_set` hits its `max(0.5, …)` floor at
+screw = 0.628; the app's slider runs to 1.00, so everything above 0.628 changes nothing.
+
+**But do NOT lower the gain — that fix was tested and refuted** (`scratch/probe_txv_band.py`):
+
+| gain | band | SH @ screw 0.50 | SH @ 0.628 | **spread** | err vs 1.27 K |
+|---|---|---|---|---|---|
+| 0.25 | 3.80 K | 2.56 K | 1.82 K | **0.74 K** | +1.29 |
+| 0.50 | 1.90 K | 1.93 K | 1.17 K | **0.76 K** | +0.66 |
+| 1.00 | 0.95 K | 1.60 K | 0.84 K | **0.76 K** | +0.33 |
+
+The spread is identical at every gain. Lowering the gain buys the operator **no** extra
+authority — it only enlarges the steady-state offset. Screw authority is set by
+`txv_screw_span_k` (6.0 K) and the 0.5 K floor, not by the gain. If more operator authority
+over superheat is wanted those are the levers, and it is a trainer-behaviour decision, not a
+fit.
+
+#### Still open after the 2026-08-06 fixes — these need a decision, not a patch
+
+The audit that followed the fixes found three more, all of the same kind: **the app asserts
+detail the model does not have.**
+
+- **The two evaporator circuits are copies of one.** `ClosedLoopM1eCS.mo:598-605` sets
+  `m_dot_circuit_kg_s_1 = _2 = m_dot_kg_s` and `superheat_circuit_k_1 = _2 = superheat_k`.
+  The UI draws two separate circuit cards, a split schematic and per-circuit readouts — all
+  showing the same number twice. Maldistribution is **real** on this machine (2.4–2.7 K
+  across all three campaigns, §3), so a student sees perfectly balanced circuits and learns
+  it does not happen. Collapse the display or model it properly; do **not** fake a split
+  from a knob.
+- **Five displayed pressures are two.** `p_cond_in_pa = p_txv_inlet_pa = p_discharge_pa` and
+  `p_evap_out_pa = p_suction_pa`. There is **no pressure drop anywhere** — not across the
+  condenser, the liquid line, the drier, or the 40 in suction line the model already heats by
+  105 W. That removes a whole class of training faults: a restricted filter drier is
+  diagnosed by the drop across it, and here that drop is identically zero. `twin/faults.py`
+  is 7 lines and contains no faults at all.
+- **`epsilon_s` = 0.72 is a hardcoded literal** (`ClosedLoopM1eCS.mo:153`) with no source, no
+  provenance entry, and no PR dependence — while the control sweep spans PR 6.9 to 10.7. Real
+  isentropic efficiency falls with lift, so the model gets progressively **optimistic** as
+  head pressure rises, and "high head costs you efficiency" is a core thing a trainer should
+  teach. It is also the one significant compressor number that can drift silently, because
+  it is not `Evaluate=false` and not in the provenance table.
+
+#### THE MODEL HAS NO LOAD — `T_box_k` is a fixed temperature, so the box can never warm
+
+Asked 2026-08-06: superheat went 3.3 → 12.9 F while suction moved 0.7 psi and flow 5 %.
+"Nothing moved except superheat." The superheat change **is** real — verified at cell level,
+`evap.Cells[i].x` shows the dry zone growing and cell 5's duty collapsing 145 → 41 W. But the
+reason nothing else follows is a **boundary condition**, and it is the most consequential
+finding of the session.
+
+`coil_evap.T_air_in_k = T_box_k` (`ClosedLoopM1eCS.mo:292`). The evaporator always sees 0 F
+air, whatever the coil does. So starving the valve gives:
+
+| | SH 1.93 K | SH 8.55 K |
+|---|---|---|
+| `T_evap` | −27.69 C | −28.63 C |
+| wet cells 1–4 duty | 120 / 134 / 149 / 165 W | **138 / 153 / 170 / 188 W** |
+| dry cell 5 duty | 145 W | **41 W** |
+| **Q_evap** | 711.9 W | **689.9 W (−3.1 %)** |
+
+`T_evap` falls, so the air-to-refrigerant ΔT *rises*, so the four wet cells each transfer
+**more** — and that almost exactly cancels the dry cell's collapse. The arithmetic is correct
+for a fixed-air-temperature boundary. **The physics of the coil is not what is wrong.**
+
+What is wrong is that a real box answers lost capacity by **warming up**, and that is the
+symptom a technician actually diagnoses — set superheat too high and the case will not hold
+temperature. Here the box is an infinite reservoir pinned at 0 F, so that symptom cannot
+exist, and a badly-set TXV shrinks to a 6 % flow change. The same structure applies to
+`T_amb_k`, but a room genuinely *is* a reservoir; a refrigerated case is not.
+
+**BUILT 2026-08-06 — `box_thermal_model`, defaulted OFF.** Load is now the input and box
+temperature is the answer:
+
+```
+der(T_box_air_k) = (Q_box_load_w + UA_box·(T_room_k − T_box) − Q_evap_w) / C_box_j_k
+```
+
+Every constant is pinned by measurement: load 945.1 BTU/hr = the 277 W continuous `Case Watts`;
+`UA_box` 7.40 W/K from the **measured 85 % duty**; `C_box` 1.06e5 J/K from the **measured
+39 min cycle**; `T_room_k` 299.71 K = 79.8 F room air — deliberately **not** `T_amb_k`, which
+is the condenser inlet and would overstate the leak by 62 W.
+
+| load | T_box settles | Q_evap | load + leak | imbalance |
+|---|---|---|---|---|
+| 600 BTU/hr | −10.67 F | 548.1 W | 547.8 W | −0.35 W |
+| 945 BTU/hr | −5.37 F | 627.3 W | 627.2 W | −0.14 W |
+| 1500 BTU/hr | +2.72 F | 756.5 W | 756.5 W | +0.05 W |
+
+**Equilibrium is fast again — don't integrate the box.** `scratch/box_equilibrium.py`. For the
+equilibrium answer `C_box` is irrelevant; it sets only how fast you arrive. So solve the root
+of `Q_load + UA_box·(T_room−T_box) − Q_evap(T_box) = 0` using the *original* fixed-`T_box`
+model, which settles in 1500 s. Secant converges in 2 steps:
+
+```
+seed  -0.00 F -> -106.80 W   iter1  -5.49 F -> +2.19 W
+seed -10.80 F -> +103.39 W   iter2  -5.38 F -> -0.05 W
+```
+
+~32 s wall clock against ~100 s, and it lands on a genuine root. **The ODE settled at −5.37 F
+and the root solver gives −5.38 F** — two entirely different methods agreeing to 0.01 F, which
+validates the box energy balance itself, not just one implementation. Only *cycling* still
+needs the ODE, because a thermostat has no steady state.
+
+**Without a thermostat the box undershoots**: at the measured load it settles at −5.37 F, not
+the measured 0 F, because a continuously-running compressor makes 712 W against a 605 W load.
+Not an error — it is the proof the thermostat is needed, and it agrees with the measured 85 %
+duty.
+
+#### The thermostat — MEASURED, built, and blocked on one thing
+
+From `Discharge Air Sensor` at every compressor transition, defrost excluded. The user
+confirmed the controller works off discharge air; the wiring diagram corroborates it.
+
+| | cut-out | cut-in | differential | ON | OFF | duty |
+|---|---|---|---|---|---|---|
+| NSF | −8.50 F | −2.55 F | 5.95 F | 16 min | 6 min | 85.0 % |
+| DOE | −8.26 F | −2.62 F | 5.64 F | 16 min | 6 min | 85.1 % |
+
+Two independent campaigns agreeing to **0.25 F on both setpoints**. Cycle period is **22 min**
+(16 on + 6 off) — an earlier note said 39 min, which came from dividing 1440 by the ON-block
+count and ignoring the gaps.
+
+Built and gated, `box_thermostat` defaulted OFF. `ConstantSpeed` became a signal-driven
+`Speed` (its `w_fixed` is a parameter and cannot switch at run time). Two real bugs were fixed
+on the way, both worth remembering:
+
+1. **A `pre()` hysteresis written as a plain equation does not fire.** Discharge air sat at
+   −11.6 F for 6000 s — 3.1 F *below* cut-out — and `comp_run` never moved. A discrete
+   variable assigned outside a `when` generates no state events. Use `when/elsewhen`.
+2. **Never AND a Boolean parameter into an event condition.** `box_thermostat and T < T_cut`
+   makes the root function discontinuous and CVode cannot bracket a root in a function that
+   jumps. Let the parameter select the *setpoints* instead.
+
+**BLOCKED: the compressor cannot be stopped.** At the first cut-out crossing,
+`CVode code −12, cvRcheck3` and `fmi2GetEventIndicators failed`. The indicator evaluation
+itself errors, so this is not solver tuning. `CompressorEM` is quasi-static and has no valid
+zero-flow branch: at `w = 0` it passes no mass while the TXV still passes flow, and the loop
+must equalise through the coils — a state the model cannot represent. A real compressor is a
+*closed port* when off, not a zero-displacement pump. See the follow-up task; **do not
+substitute a duty-cycle fudge**, a model reporting 85 % duty without ever stopping is worse
+than one that admits it runs continuously.
+
+**Honest limit: this does NOT make superheat dramatic.** At fixed load, SH 1.75 → 4.45 K warms
+the box only 0.44 F, because at equilibrium `Q_evap` is pinned by load + leak and the box only
+shifts far enough to restore it. The box model supplies the missing feedback; it does not
+manufacture an effect the coil physics does not produce. Whether the ~3 % capacity penalty is
+itself too small is the next question — and `Unom_v` = 200 W/m²K against `Unom_tp` = 1500 is a
+7.5:1 ratio where R290 physically wants 20–40:1, so the dry zone may be transferring several
+times too much heat.
+
+#### A hypothesis tested and REFUTED — do not re-run it
+
+I suspected N=5 was too coarse to resolve the growing dry zone, smearing the capacity penalty.
+Rebuilt at N=10 and swept:
+
+| | Q_evap at SH ~1.9 K | at SH 8.55 K | change | dry zone |
+|---|---|---|---|---|
+| N=5 | 711.9 W | 689.9 W | −3.1 % | 1/5 at every superheat |
+| N=10 | 727.0 W | 709.8 W | **−2.4 %** | 1/10 → 2/10 |
+
+Refining the grid made the penalty **smaller**. The dry fraction is genuinely 10–20 % and N=5
+resolves it. `N` restored to 5, file verified byte-identical to the pre-test backup, gate
+re-run **3/3 at 7/7**.
+
+#### What still works, for balance
+
+`T_amb` and `T_box` move everything strongly and in the right directions — ±15 K of ambient
+swings `T_cond` ∓13.7 K and Q_evap ±155 W; ±10 K of box swings Q_evap ±250 W. The heat
+exchanger physics responds. It is the capacity-increasing direction and the valve that are
+bound.
+
+#### Superseded first answer — kept because the reasoning error is instructive
+
+Sweeping `superheat_target_k` showed settled superheat tracking it 1:1 (1.93 / 4.61 / 8.55 K
+for targets 1.27 / 4.0 / 8.0), and that was reported as "the loop is live, so insensitivity to
+charge is correct TXV physics". Both halves are true and the conclusion was still wrong: a
+loop can be live and *far too stiff*, and `superheat_target_k` is not a control the operator
+has. **Test the levers the user actually holds, at the limits the UI actually offers.**
 
 | case | coil SH | subcool | mdot g/s | `M_charge_kg` |
 |---|---|---|---|---|
@@ -374,6 +622,14 @@ only adjusts stroke to pass it while holding superheat. That is why
 ---
 
 ## 5. WHERE TO GO NEXT — start here
+
+### START WITH THE ONE-SIDEDNESS — §4 supersedes the ordering below
+
+The 2026-08-06 control sweep found the model responds 3–26× more strongly to *reducing*
+capacity than to *increasing* it. That is a saturation signature, it is the operator's actual
+complaint, and it points at the same suspect this section already names — which is now
+evidence for the lead rather than a hypothesis about it. Fix the bound and the one-sidedness
+should go with it. Read §4 "The model is like a tank" first.
 
 ### The remaining error is the evaporator, and the next suspect is named
 
@@ -441,6 +697,8 @@ superheated zone masking the air side. When a lever goes inert, look for the bou
 | `Case Watts` dropping to 46 W identifies a switched case load | **WRONG 2026-08-06** — 182 episodes of 1–2 min with suction, liquid and the defrost flag all unchanged and evaporator air *colder*. A metering artifact, not an operating mode |
 | `Drain Pan Surface Temp` at 103 F shows the 40 W pan heater sits outside the box | **WRONG 2026-08-06, self-corrected** — that probe is on the *condensate-evaporation* pan warmed by the hot-gas coil, a **different pan** from the one under the evaporator carrying the element. Right conclusion (not modelled), wrong reason: the heater is out because it is **defrost-only and off in the steady state**. A channel name that plausibly matches the device you are asking about is not evidence that it measures it |
 | Superheat's insensitivity to charge means the TXV lever is stuck again | **WRONG 2026-08-06** — the setpoint sweep moves settled superheat 6.6 K for a 6.7 K command. The loop is live; holding superheat while charge moves is what a TXV *does*. §4 |
+| Superheat rises without a capacity penalty because N=5 cannot resolve the dry zone | **WRONG 2026-08-06, tested at N=10** — the penalty got *smaller* (−2.4 % vs −3.1 %) and the dry zone is genuinely 10–20 %. The cause is the fixed `T_box_k` boundary, not the mesh. §4 |
+| The coil physics is why nothing moves when superheat changes | **WRONG 2026-08-06** — the coil is fine. `T_box_k` is a fixed temperature, so `T_evap` falling *raises* the air ΔT and the wet cells compensate. The model has no load. §4 |
 | `M_charge_kg` staying constant across a sweep is a sign of insensitivity | **WRONG 2026-08-06** — it is mass conservation. The model has two volumes and no other holdup, so that sum cannot change. §4 |
 | A faithful TXV can be given authority over mass flow | **WRONG 2026-08-06** — the COMPRESSOR sets mass flow (+0.8 % via the valve). Correct physics, not a model defect |
 
