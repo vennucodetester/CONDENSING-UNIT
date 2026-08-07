@@ -337,6 +337,41 @@ model ClosedLoopM1eCS
     T_amb_k = T_amb_k,
     h_start = 5.49227e5);
 
+  /* ================= LIQUID LINE + FILTER DRIER, added 2026-08-06 =================
+     Closes the second half of the zero-pressure-drop defect. Until now
+     p_cond_in_pa = p_txv_inlet_pa = p_discharge_pa, so the liquid line and the drier cost
+     nothing to push through and a RESTRICTED DRIER -- one of the commonest field faults,
+     diagnosed almost entirely by the drop across it -- could not be represented at all.
+
+     SuctionLine is reused deliberately rather than duplicated: it is a generic tube with a
+     lumped heat gain and a Darcy-Weisbach drop, and it is already proven in this loop. The
+     name is historical; treat it as "line". Reusing it means the pressure-drop law has one
+     implementation, not two that can drift apart.
+
+     GEOMETRY IS AS-BUILT (docs/AS_BUILT_GEOMETRY.md section 1, user-confirmed): 20 in of
+     0.194 in ID through the solenoid. No bends were given, so n_bends = 0 -- an
+     UNDERSTATEMENT, not an assumption, and the drop is therefore a floor.
+
+     THE DRIER IS CARRIED AS EQUIVALENT LENGTH. A Danfoss 023Z8250 is rated 1.7 TR on R290
+     and this unit runs well under that, so its drop is small but not zero. 60 in of
+     equivalent length is the standard allowance for a liquid-line drier of this size and is
+     recorded here as an ASSUMPTION to be replaced by the manufacturer curve if it matters.
+     Total equivalent length 20 + 60 = 80 in = 2.032 m.
+
+     UA is set near zero, NOT to the suction line's 2.5 W/K. The liquid line is already at
+     roughly ambient, so there is almost no driving dT and its heat exchange is genuinely
+     negligible -- unlike the suction line, which carries -24 C gas through 35 C air.
+     h_start is the LIQUID enthalpy at the condenser outlet, not the vapour value. */
+  SuctionLine liquid_line(
+    redeclare package Medium = Med,
+    T_amb_k = T_amb_k,
+    UA_suction_w_k = 0.01,
+    M_line_kg = 0.0048,
+    L_suction_m = 2.032,
+    D_suction_m = 0.004928,
+    n_bends = 0,
+    h_start = 2.95116e5);
+
   ThermoCycle.Components.Units.PdropAndValves.Valve txv(
     redeclare package Medium = Med,
     UseNom = false, Afull = 9.6e-8 * txv_size_frac,
@@ -531,6 +566,7 @@ model ClosedLoopM1eCS
   output Real superheat_comp_k(unit="K") "at the COMPRESSOR INLET - coil superheat plus suction-line gain";
   output Real Q_suction_line_w(unit="W") "ambient heat into the suction line - a LOSS";
   output Real dp_suction_pa(unit="Pa") "friction pressure drop along the suction line";
+  output Real dp_liquid_pa(unit="Pa") "friction drop along the liquid line plus drier";
   output Real subcooling_k(unit="K");
   output Real m_dot_kg_s(unit="kg/s", start = 4.50e-3);
   output Real Q_evap_w(unit="W");
@@ -595,7 +631,8 @@ initial equation
 equation
   /* ---------------- the loop ---------------- */
   connect(comp.OutFlow, cond.InFlow);
-  connect(cond.OutFlow, txv.InFlow);
+  connect(cond.OutFlow, liquid_line.InFlow);
+  connect(liquid_line.OutFlow, txv.InFlow);
   connect(txv.OutFlow, evap.InFlow);
   /* THE SUCTION LINE NOW SITS HERE, 2026-08-04. Was connect(evap.OutFlow, comp.InFlow),
      i.e. the compressor drew straight off the coil and had to see the coil's own
@@ -794,7 +831,11 @@ equation
      imposes a real friction drop, so comp.InFlow.p sits below this by dp_suction_pa. */
   p_evap_out_pa         = p_suction_pa;
   dp_suction_pa         = suction.dp_suction_pa;
-  p_txv_inlet_pa        = p_discharge_pa;
+  /* WAS p_txv_inlet_pa = p_discharge_pa, i.e. the TXV was assumed to see full compressor
+     discharge pressure. It now sees the condenser outlet MINUS the liquid line and drier
+     drop, which is what a gauge on the drier outlet actually reads. */
+  p_txv_inlet_pa        = liquid_line.OutFlow.p;
+  dp_liquid_pa          = liquid_line.dp_suction_pa;
   superheat_circuit_k_1 = superheat_k;
   superheat_circuit_k_2 = superheat_k;
   superheat_mixed_k     = superheat_k;
