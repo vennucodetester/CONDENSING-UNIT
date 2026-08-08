@@ -391,16 +391,15 @@ class Schematic(QWidget):
                     f"Suction pressure: {shown('p_suction_pa')}",
                     f"Evaporating saturation: {shown('T_evap_sat_k')}",
                     f"Refrigerant outlet actual: {shown('T_suction_k')}",
-                    # SINGLE-CIRCUIT MODEL (2026-08-06). ClosedLoopM1eCS.mo:598-605 sets
-                    # superheat_circuit_k_1 = _2 = superheat_k and the two mass flows
-                    # likewise, so these were the SAME number shown twice as if they were
-                    # two independent measurements. Real maldistribution on this machine is
-                    # 2.4-2.7 K across all three campaigns, so a balanced pair taught the
-                    # opposite of the truth. Labelled rather than deleted: the circuit
-                    # exists physically, the model just does not resolve the split.
-                    f"Superheat (coil, not per-circuit): {shown('superheat_circuit_k_1')}",
-                    f"Mass flow (total / 2, not measured per-circuit): {shown('m_dot_circuit_kg_s_1')}",
-                    "Model is SINGLE-CIRCUIT — no maldistribution (measured: 2.4–2.7 K)",
+                    # RESTORED 2026-08-08. These are REAL per-circuit values again: the
+                    # evaporator is now two parallel Flow1DimCS circuits fed through
+                    # distributor tubes, so superheat_circuit_k_1/2 and m_dot_circuit_kg_s_1/2
+                    # are measured separately rather than one number printed twice. The
+                    # "not per-circuit" labelling added when the model was single-circuit is
+                    # now wrong and has been removed. At equal distributor bores the split is
+                    # 50.0/50.0 by symmetry; unequal bores are the maldistribution handle.
+                    f"Circuit superheat: {shown('superheat_circuit_k_1')}",
+                    f"Circuit mass flow: {shown('m_dot_circuit_kg_s_1')}",
                     f"Air entering / leaving: {shown('T_air_in_evap_k')} / {shown('T_air_off_evap_k')}",
                     f"Cooling capacity: {shown('Q_evap_w')}",
                 ],
@@ -413,24 +412,22 @@ class Schematic(QWidget):
                     f"Suction pressure: {shown('p_suction_pa')}",
                     f"Evaporating saturation: {shown('T_evap_sat_k')}",
                     f"Refrigerant outlet actual: {shown('T_suction_k')}",
-                    f"Superheat (coil, not per-circuit): {shown('superheat_circuit_k_2')}",
-                    f"Mass flow (total / 2, not measured per-circuit): {shown('m_dot_circuit_kg_s_2')}",
-                    "Model is SINGLE-CIRCUIT — no maldistribution (measured: 2.4–2.7 K)",
+                    f"Circuit superheat: {shown('superheat_circuit_k_2')}",
+                    f"Circuit mass flow: {shown('m_dot_circuit_kg_s_2')}",
                     f"Air entering / leaving: {shown('T_air_in_evap_k')} / {shown('T_air_off_evap_k')}",
                     f"Cooling capacity: {shown('Q_evap_w')}",
                 ],
             ),
             "evaporator": (
-                "Evaporator — single-circuit model",
+                "Evaporator — two circuits",
                 [
                     f"Airflow: {inputs.airflow_frac * 100:.0f}%",
                     f"Installed size: {inputs.evaporator_capacity_frac * 100:.0f}%",
                     f"Suction pressure: {shown('p_suction_pa')}",
                     f"Evaporating saturation: {shown('T_evap_sat_k')}",
                     f"Refrigerant outlet actual: {shown('T_suction_k')}",
-                    f"Coil superheat: {shown('superheat_circuit_k_1')}",
-                    f"Mass flow: {shown('m_dot_circuit_kg_s_1')}",
-                    "SINGLE-CIRCUIT — the two circuits are not resolved separately",
+                    f"Circuit 1 / 2 superheat: {shown('superheat_circuit_k_1')} / {shown('superheat_circuit_k_2')}",
+                    f"Circuit 1 / 2 flow: {shown('m_dot_circuit_kg_s_1')} / {shown('m_dot_circuit_kg_s_2')}",
                     f"Air entering / leaving: {shown('T_air_in_evap_k')} / {shown('T_air_off_evap_k')}",
                     f"Cooling capacity: {shown('Q_evap_w')}",
                 ],
@@ -475,7 +472,7 @@ class Schematic(QWidget):
             ),
             "distributor": (
                 "Distributor",
-                ["Normal inlet: TXV", "Side inlet: hot-gas check valve", "Outlet: evaporator (single-circuit model)"],
+                ["Normal inlet: TXV", "Side inlet: hot-gas check valve", "Outlet split: evaporator circuits 1 and 2"],
             ),
         }
         title, lines = details.get(component, (component, []))
@@ -641,7 +638,7 @@ class Schematic(QWidget):
         painter.setPen(QPen(QColor("#2563a6") if selected_evap else structure, 3 if selected_evap else 1.5))
         painter.drawRoundedRect(evaporator, 8, 8)
         painter.setPen(QColor("#172033"))
-        painter.drawText(QRectF(evaporator.left(), evaporator.top() + 5, evaporator.width(), 22), Qt.AlignmentFlag.AlignCenter, "Evaporator — single-circuit model")
+        painter.drawText(QRectF(evaporator.left(), evaporator.top() + 5, evaporator.width(), 22), Qt.AlignmentFlag.AlignCenter, "Evaporator — two circuits")
 
         circuit_1_y = outlet_1.y()
         circuit_2_y = outlet_2.y()
@@ -660,13 +657,12 @@ class Schematic(QWidget):
         # circuit_y - 7 -- clear of the circuit tube. Drawing the current value at
         # -7 put the "was" line straight through the pipework.
         circuit_text = QColor("#344054")
-        self._label(painter, evaporator.left() + 14, circuit_1_y - 20, f"SH {_format_quantity('superheat_circuit_k_1', q['superheat_circuit_k_1'])}  (single-circuit model)", circuit_text)
+        self._label(painter, evaporator.left() + 14, circuit_1_y - 20, f"C1  SH {_format_quantity('superheat_circuit_k_1', q['superheat_circuit_k_1'])}", circuit_text)
         self._prev_label(painter, evaporator.left() + 14, circuit_1_y - 20, ("superheat_circuit_k_1",))
-        # Second circuit label REMOVED 2026-08-06. It read superheat_circuit_k_2, which
-        # ClosedLoopM1eCS.mo:604 sets equal to superheat_circuit_k_1 -- the same number
-        # printed twice beside two drawn tubes, which is what made a single-circuit model
-        # look like a balanced pair. The tubes stay because the coil really is two-circuit;
-        # only the fabricated per-circuit READOUT goes.
+        # C2 label RESTORED 2026-08-08 with the dual-circuit model. It was removed while
+        # superheat_circuit_k_2 was a copy of _1; it is now an independently computed value.
+        self._label(painter, evaporator.left() + 14, circuit_2_y - 20, f"C2  SH {_format_quantity('superheat_circuit_k_2', q['superheat_circuit_k_2'])}", circuit_text)
+        self._prev_label(painter, evaporator.left() + 14, circuit_2_y - 20, ("superheat_circuit_k_2",))
 
         painter.setPen(QColor("#7a4300"))
         painter.drawText(QRectF(check_point.x() - 48, check_point.y() - 31, 96, 22), Qt.AlignmentFlag.AlignCenter, "Check valve")

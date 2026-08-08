@@ -319,6 +319,39 @@ class CalibrationProvenance(unittest.TestCase):
                      f"cover. Change the app default, or -- if the divergence is "
                      f"deliberate -- record WHY here rather than deleting the pair."))
 
+    def test_component_modifier_coefficients_are_guarded(self):
+        """Calibrated values that live inside a component instantiation, not as top-level
+        parameters.
+
+        WHY (found 2026-08-06). `Unom_l` / `Unom_tp` / `Unom_v` are set as modifiers on the
+        Flow1DimCS instances, so `declared_values()` -- which matches `parameter <type> <name>`
+        at the top level -- cannot see them. `Unom_v` was changed 200 -> 80 and this test
+        suite did NOT notice. Three calibrated heat-transfer coefficients were unguarded.
+
+        These are not free parameters: the vapour-to-two-phase ratio is a physical property
+        of the fluid and the flow regime, not a fitting knob.
+        """
+        text = MO.read_text(encoding="utf-8", errors="replace")
+        expected = {
+            "Unom_l":  ([500.0, 500.0, 800.0], "liquid-side nominal. THREE values since 2026-08-08: the "
+                                        "evaporator is two parallel circuits (500 each) plus "
+                                        "the condenser (800 W/m2K)"),
+            "Unom_tp": ([1500.0, 1500.0, 2000.0], "two-phase nominal: evaporator 1500, condenser 2000 "
+                                          "W/m2K, the dominant regime in both coils"),
+            "Unom_v":  ([80.0, 80.0, 300.0], "vapour-side nominal: evaporator 80 (lowered from 200 on "
+                                       "2026-08-06 so the vapour-to-two-phase ratio is 18.75:1, "
+                                       "toward the 20-40:1 R290 physically shows, instead of "
+                                       "7.5:1), condenser 300"),
+        }
+        for name, (values, source) in expected.items():
+            found = [float(m) for m in re.findall(rf"{name}\s*=\s*({NUM})", text)]
+            self.assertEqual(
+                sorted(found), sorted(values),
+                msg=(f"\n{name} in the model is {sorted(found)}, table says {sorted(values)}."
+                     f"\nRecorded source: {source}"
+                     f"\nThese are component MODIFIERS and are invisible to the top-level "
+                     f"parameter scan -- that is why this test exists."))
+
     def test_no_calibrated_parameter_escaped_the_table(self):
         """A new tunable parameter must be added here deliberately, so that adding one
         is a decision rather than an accident."""
