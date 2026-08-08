@@ -405,12 +405,65 @@ model ClosedLoopM1eCS
     n_bends = 0,
     h_start = 2.95116e5);
 
+  /* DISTRIBUTOR TUBES, added 2026-08-06 after the first dual-circuit build FAILED with
+         Circular Equalities Detected; 1631 equations against 1624 variables
+     Two identical Flow1DimCS branches connected directly between the TXV outlet and the
+     suction inlet are STRUCTURALLY SINGULAR: Flow1Dim carries no momentum equation, so
+     inlet and outlet pressure are the same node at both ends of both branches and nothing
+     determines how the flow divides. Any split satisfying the sum is a solution.
+
+     A real distributor solves this in hardware: the TXV discharges into a distributor whose
+     small-bore tubes are deliberately the dominant resistance, which is precisely WHY they
+     divide flow evenly regardless of what the circuits downstream are doing. Modelling them
+     is not a numerical trick to fix a singularity - it is the component that was missing.
+
+     Reusing SuctionLine again as the generic tube: 12 in of 0.070 in bore, UA ~0 (it is
+     inside the box and short). Identical tubes give a 50/50 split by symmetry, which is the
+     user's stated assumption for now. Making them UNEQUAL is how maldistribution gets
+     introduced later - that is the feed-fraction handle, and it is physical. */
+  SuctionLine dist1(
+    redeclare package Medium = Med, T_amb_k = T_box_k, UA_suction_w_k = 0.001,
+    M_line_kg = 1.0e-4, L_suction_m = 0.3048, D_suction_m = 0.001778, n_bends = 0,
+    h_start = 2.95116e5);
+  SuctionLine dist2(
+    redeclare package Medium = Med, T_amb_k = T_box_k, UA_suction_w_k = 0.001,
+    M_line_kg = 1.0e-4, L_suction_m = 0.3048, D_suction_m = 0.001778, n_bends = 0,
+    h_start = 2.95116e5);
+
   ThermoCycle.Components.Units.PdropAndValves.Valve txv(
     redeclare package Medium = Med,
     UseNom = false, Afull = 9.6e-8 * txv_size_frac,
     p_nom = p_cond_start, T_nom = 313.15, Mdot_nom = mdot_nom);
 
-  Flow1DimCS evap(
+  /* Mdotnom IS HALVED PER CIRCUIT, and missing this cost 9.1 % of capacity on the first
+     dual-circuit build. ThermoCycle scales every refrigerant-side coefficient as
+     U = Unom*(M_dot/Mdotnom)^0.8, and Mdotnom is the nominal flow THROUGH THAT COMPONENT.
+     Each circuit carries half the flow, so leaving the full nominal in place put each
+     circuit at (0.209)^0.8 / (0.457)^0.8 = 54 % of the single coil's refrigerant-side U.
+     Splitting a coil means splitting its nominal flow with it. */
+  /* ================= DUAL-CIRCUIT EVAPORATOR, added 2026-08-06 =================
+     The coil IS two circuits (docs/AS_BUILT_GEOMETRY.md section 2: 40 straight passes in
+     2 refrigerant circuits through a distributor) and the two coil-inlet probes disagree
+     by 2.66 K (NSF), 2.38 K (DOE), 2.39 K (2.002) on every campaign. The single-circuit
+     model could not represent that at all.
+
+     50/50 SPLIT FOR NOW, by user decision - the feed fraction comes later.
+
+     Each circuit carries HALF the geometry: A 0.286 m2, V 663e-6 m3, air-side UA and
+     airflow halved, wall mass 2.15 kg. Two identical halves in parallel must reproduce one
+     whole; that is the acceptance test for this stage.
+
+     THE SPLIT AND JOIN ARE IDEAL 3-WAY CONNECTS on the ThermoCycle flanges. Modelica
+     equalises pressure across a connection set and sums the flows, and the stream semantics
+     do the enthalpy mixing at the rejoin - so no distributor or header component is needed
+     to get a physically correct parallel arrangement. With identical circuits the flow
+     divides 50/50 by hydraulic symmetry rather than by assumption.
+
+     WHY THIS IS WORTH THE RISK: the TXV bulb sees the MIXED outlet. One circuit can be
+     starved and running hot while mixed superheat reads normal and the valve does nothing
+     about it. That is the lesson maldistribution exists to teach, and it needs two real
+     circuits to exist at all. */
+  Flow1DimCS evap1(
     redeclare package Medium = Med,
     /* A 0.5 -> 0.630 to MATCH CoilAirSide.A_tot. These two MUST be equal: the coil
        divides by A_cell to make a flux, the cell multiplies by Ai to make a power.
@@ -426,7 +479,56 @@ model ClosedLoopM1eCS
          A 0.630 -> 0.572 : INTERNAL wetted area (40 x pi x ID x L). 0.630 was the
            CoilDesigner PRIMARY (outside) area - wrong side for a refrigerant-side
            coefficient. MUST equal CoilAirSide.A_tot. */
-    N = N, A = 0.572, V = 0.001326, Mdotnom = mdot_nom,   /* V 0.0005 -> 0.001051:
+    N = N, A = 0.286, V = 0.000663, Mdotnom = 0.5*mdot_nom,   /* V 0.0005 -> 0.001051:
+       DERIVED FROM THE SHEET, not assumed. 40 tubes x 20.57 in, and primary area
+       6.78 ft2 back-calculates tube OD = Aprim/(N*pi*L) = 9.59 mm = 3/8 in nominal
+       (a good self-consistency check on the sheet). With 0.030 in ACR wall, ID 8.00 mm
+       -> V = 40*(pi/4)*ID^2*L = 1051 cm3. Model held half that.
+       Charge note: at -32 C this volume holds only ~4 g as vapour, ~12 g at x=0.3 -
+       the evaporator is NOT where the 110 g lives. The charge is liquid in the
+       CONDENSER, whose V/A remain ASSUMED (no condenser sheet exists). */
+    /* Unom_v 200 -> 80 (2026-08-06). The vapour-to-two-phase ratio was 1500/200 = 7.5:1,
+       where R290 in a tube physically wants 20-40:1 -- boiling coefficients run
+       2000-4000 W/m2K while superheated-vapour forced convection at these mass fluxes is
+       50-150. A vapour coefficient several times too generous makes the DRY ZONE transfer
+       far too much heat, which is why raising superheat cost only ~3 % capacity when a UA
+       argument says ~10 %. 80 gives 18.75:1, the low end of the physical range.
+       PREDICTION RECORDED BEFORE THE RUN: the calibrated point barely moves (< 1 % on
+       Q_evap) because at 1.27 K superheat there is almost no dry zone -- verified from
+       evap.Cells[i].x -- while the superheat PENALTY deepens from -3.1 % toward -6..-10 %.
+       If the calibrated point moves more than 2 %, this hypothesis is wrong and the dry
+       zone matters even when nearly flooded, which the cell data contradicts. */
+    Unom_l = 500, Unom_tp = 1500, Unom_v = 80,
+    pstart = p_evap_start,
+    /* Moved with p_evap_start, 2026-08-04. These must describe the SAME state as the
+       pressure or the profile is inconsistent on the first step: 248.99 K = Tsat at
+       2.099 bar, 250.25 K = the measured 1.27 K coil-outlet superheat (NOT the 22.88 K
+       compressor-inlet figure - that includes suction-line gain the model omits). */
+    Tstart_inlet = 248.99, Tstart_outlet = 250.25,
+    Discretization = ThermoCycle.Functions.Enumerations.Discretizations.upwind,
+    /* h_in = liquid at the measured 8.98 K subcooling (35.84 C, 15.28 bar); h_out =
+       vapour at 2.099 bar and 1.27 K superheat. The old pair was consistent with the
+       old 4.85 bar start, not with the machine. */
+    hstart = linspace(2.95116e5, 5.49227e5, N),
+    steadystate = false);
+
+  Flow1DimCS evap2(
+    redeclare package Medium = Med,
+    /* A 0.5 -> 0.630 to MATCH CoilAirSide.A_tot. These two MUST be equal: the coil
+       divides by A_cell to make a flux, the cell multiplies by Ai to make a power.
+       With 0.630 vs 0.5 the air side lost 487 W while the refrigerant side gained
+       386 W - 21% of the heat vanished at the interface. NB `res_energy_w` cannot
+       detect this: it sums Q_evap + W_comp + Q_cond, all refrigerant-side, and read
+       0.00000 W throughout. Value is the sheet's primary (tube) area, 6.78 ft2. */
+    /* FROM THE DRAWING: Hussmann 3186699 'COIL ASSY-EVAP 40P 2C .375' (= the
+       CoilDesigner 40P-2C sheet). COPPER TUBES 0.375 x 0.016 -> ID 8.712 mm.
+         V 0.001051 -> 0.001326 : I had assumed a 0.030 in wall (ID 8.00 mm); the
+           drawing says 0.016 in. 40 x pi/4 x ID^2 x 20.57 in = 1246 cm3, plus ~80 cm3
+           of return bends and the 23.17 vs 20.57 in coil-vs-fin length.
+         A 0.630 -> 0.572 : INTERNAL wetted area (40 x pi x ID x L). 0.630 was the
+           CoilDesigner PRIMARY (outside) area - wrong side for a refrigerant-side
+           coefficient. MUST equal CoilAirSide.A_tot. */
+    N = N, A = 0.286, V = 0.000663, Mdotnom = 0.5*mdot_nom,   /* V 0.0005 -> 0.001051:
        DERIVED FROM THE SHEET, not assumed. 40 tubes x 20.57 in, and primary area
        6.78 ft2 back-calculates tube OD = Aprim/(N*pi*L) = 9.59 mm = 3/8 in nominal
        (a good self-consistency check on the sheet). With 0.030 in ACR wall, ID 8.00 mm
@@ -460,7 +562,7 @@ model ClosedLoopM1eCS
     steadystate = false);
 
   /* Air-side heat transfer models with airflow dependence (replaces WallTemperatureSource stand-in) */
-  CoilAirSide coil_evap(
+  CoilAirSide coil_evap1(
     /* UA_air_nom 26.75 -> 76.0 (2026-08-03). 26.75 was fitted against the coil while
        its heat-flux sign was INVERTED, and against MT box air; it never described this
        LT evaporator. Symptom: T_evap_sat -39.9 C against entering air -20.8 C, a 19 K
@@ -483,7 +585,33 @@ model ClosedLoopM1eCS
        PREDICTION (compressor curve vs coil UA): T_evap ~ -26 to -24 C, capacity
        730-800 W. Range not point: actual airflow (0.15) exceeds the sheet's 0.118, so
        UA scales up by (0.15/0.118)^0.8 ~ 1.21. Today: -36.0 C, 282 W. */
-    N = N, V_dot_air_nom = 0.118, UA_air_nom = UA_evap_nom_w_k*evaporator_capacity_frac, A_tot = 0.572,  /* = Flow1DimCS.A */
+    N = N, V_dot_air_nom = 0.059, UA_air_nom = 0.5*UA_evap_nom_w_k*evaporator_capacity_frac, A_tot = 0.286,  /* = Flow1DimCS.A */
+    T_air_in_k = T_box_air_k);
+
+  CoilAirSide coil_evap2(
+    /* UA_air_nom 26.75 -> 76.0 (2026-08-03). 26.75 was fitted against the coil while
+       its heat-flux sign was INVERTED, and against MT box air; it never described this
+       LT evaporator. Symptom: T_evap_sat -39.9 C against entering air -20.8 C, a 19 K
+       approach where a real LT coil runs 8-10 K, giving only 229 W.
+       Re-derived from the catalogue, not rescaled: at ~-30 C evaporating the ALX440U
+       interpolates to ~605 W (459 W @ -35 C, 1190 W @ -10 C); at an 8 K approach
+       UA = 605/8 = 76 W/K.
+       PREDICTION: evaporating rises toward -30 C, capacity rises toward ~600 W, and
+       D11 recovers - it currently fails only because the coil is UA-limited, so opening
+       the TXV floods it (superheat -> 0) instead of moving more heat. */
+    /* ALL THREE FROM THE CoilDesigner LT SHEET (40P-2C-250cfm.chx), replacing values
+       I had interpolated from the compressor catalogue:
+         V_dot_air_nom 0.15 -> 0.118   (250 CFM, the sheet's design airflow)
+         UA_air_nom    76.0 -> 132.8   (1183 W / 8.91 K mean-temperature difference)
+         A_tot          0.5 -> 0.630   (primary/tube area 6.78 ft2)
+       The sheet's DUTY is deliberately NOT used. CoilDesigner solves the coil for an
+       ASSUMED refrigerant flow (3.908 g/s); it does not know what compressor is
+       upstream. The ALX440U-DS3B01 delivers ~605 W at -30 C, not the 1183 W the coil
+       is drawn for, so the coil has headroom and the system balances warmer.
+       PREDICTION (compressor curve vs coil UA): T_evap ~ -26 to -24 C, capacity
+       730-800 W. Range not point: actual airflow (0.15) exceeds the sheet's 0.118, so
+       UA scales up by (0.15/0.118)^0.8 ~ 1.21. Today: -36.0 C, 282 W. */
+    N = N, V_dot_air_nom = 0.059, UA_air_nom = 0.5*UA_evap_nom_w_k*evaporator_capacity_frac, A_tot = 0.286,  /* = Flow1DimCS.A */
     T_air_in_k = T_box_air_k);
 
   CoilAirSide coil_cond(
@@ -537,8 +665,12 @@ model ClosedLoopM1eCS
      PREDICTION BEFORE THE RUN: cycle period moves 0.8 -> roughly 2 min, still far short
      of 22, and the steady-state gate is unaffected because a capacitance changes only
      the path to equilibrium, not equilibrium itself. */
-  ThermoCycle.Components.HeatFlow.Walls.MetalWall wall_evap(
-    N = N, Aext = 0.572, Aint = 0.572, M_wall = 4.3, c_wall = 600,
+  ThermoCycle.Components.HeatFlow.Walls.MetalWall wall_evap1(
+    N = N, Aext = 0.286, Aint = 0.286, M_wall = 2.15, c_wall = 600,
+    Tstart_wall_1 = T_box_k, Tstart_wall_end = T_box_k, steadystate_T_wall = true);
+
+  ThermoCycle.Components.HeatFlow.Walls.MetalWall wall_evap2(
+    N = N, Aext = 0.286, Aint = 0.286, M_wall = 2.15, c_wall = 600,
     Tstart_wall_1 = T_box_k, Tstart_wall_end = T_box_k, steadystate_T_wall = true);
 
   /* Proportional TXV Control Law signal & block driver */
@@ -668,16 +800,23 @@ equation
   connect(comp.OutFlow, cond.InFlow);
   connect(cond.OutFlow, liquid_line.InFlow);
   connect(liquid_line.OutFlow, txv.InFlow);
-  connect(txv.OutFlow, evap.InFlow);
+  connect(txv.OutFlow, dist1.InFlow);
+  connect(txv.OutFlow, dist2.InFlow);
+  connect(dist1.OutFlow, evap1.InFlow);
+  connect(dist2.OutFlow, evap2.InFlow);
   /* THE SUCTION LINE NOW SITS HERE, 2026-08-04. Was connect(evap.OutFlow, comp.InFlow),
      i.e. the compressor drew straight off the coil and had to see the coil's own
      superheat. It no longer does, which is the whole point - see SuctionLine.mo. */
-  connect(evap.OutFlow, suction.InFlow);
+  connect(evap1.OutFlow, suction.InFlow);
+  connect(evap2.OutFlow, suction.InFlow);
   connect(suction.OutFlow, comp.InFlow);
-  connect(coil_evap.port, wall_evap.Wall_ext);
-  connect(wall_evap.Wall_int, evap.Wall_int);
+  connect(coil_evap1.port, wall_evap1.Wall_ext);
+  connect(wall_evap1.Wall_int, evap1.Wall_int);
+  connect(coil_evap2.port, wall_evap2.Wall_ext);
+  connect(wall_evap2.Wall_int, evap2.Wall_int);
   connect(coil_cond.port, cond.Wall_int);
-  coil_evap.V_dot_air_m3_s = evap_airflow_m3_s;
+  coil_evap1.V_dot_air_m3_s = 0.5*evap_airflow_m3_s;
+  coil_evap2.V_dot_air_m3_s = 0.5*evap_airflow_m3_s;
   coil_cond.V_dot_air_m3_s = condenser_airflow_m3_s;
 
   connect(txvCmd.y, txv.cmd);
@@ -780,23 +919,28 @@ equation
   txv_saturated   = (txv_opening_cmd >= 0.999) or (txv_opening_cmd <= 0.051);
 
   /* ---------------- readouts ---------------- */
-  p_suction_pa   = evap.OutFlow.p;
+  p_suction_pa   = evap1.OutFlow.p;
   p_discharge_pa = cond.InFlow.p;
   p_lift_pa      = p_discharge_pa - p_suction_pa;
 
   T_evap_sat_k = Med.saturationTemperature(p_suction_pa);
   T_cond_sat_k = Med.saturationTemperature(p_discharge_pa);
 
-  superheat_k  = Med.temperature_ph(p_suction_pa,   evap.OutFlow.h_outflow) - T_evap_sat_k;
+  /* MIXED coil-outlet superheat. suction.h_su is the enthalpy actually ENTERING the
+     suction line, i.e. inStream at that port, which is the mixture of both circuits.
+     Using suction.InFlow.h_outflow instead would read what the line sends back UPSTREAM,
+     not what it receives. This is the value the TXV bulb effectively sees, which is
+     precisely why one starved circuit can hide behind a normal-looking mixed superheat. */
+  superheat_k  = Med.temperature_ph(p_suction_pa, suction.h_su) - T_evap_sat_k;
   subcooling_k = T_cond_sat_k - Med.temperature_ph(p_discharge_pa, cond.OutFlow.h_outflow);
 
   m_dot_kg_s = comp.InFlow.m_flow;
-  Q_evap_w   = evap.Q_tot;
+  Q_evap_w   = evap1.Q_tot + evap2.Q_tot;
   Q_cond_w   = cond.Q_tot;
   W_comp_w   = comp.W_dot;
   cop        = Q_evap_w / max(W_comp_w, 1.0);
-  M_charge_kg = evap.M_tot + cond.M_tot;
-  M_evap_kg   = evap.M_tot;
+  M_charge_kg = evap1.M_tot + evap2.M_tot + cond.M_tot;
+  M_evap_kg   = evap1.M_tot + evap2.M_tot;
   M_cond_kg   = cond.M_tot;
 
   /* Box energy balance. With box_thermal_model = false the derivative is identically
@@ -849,7 +993,7 @@ equation
 
   /* Additional FMI 2.0 outputs */
   T_air_in_evap_k       = T_box_air_k;
-  T_air_off_evap_k      = coil_evap.T_air_off_k;
+  T_air_off_evap_k      = 0.5*(coil_evap1.T_air_off_k + coil_evap2.T_air_off_k);
   T_air_off_cond_k      = coil_cond.T_air_off_k;
   /* 2026-08-04: now the COMPRESSOR INLET, i.e. downstream of the suction line, which is
      both what a technician reads at the suction service port and what app.py already
@@ -862,8 +1006,8 @@ equation
   Q_suction_line_w      = suction.Q_w;
   T_discharge_k         = Med.temperature_ph(p_discharge_pa, comp.OutFlow.h_outflow);
   T_liquid_k            = T_cond_sat_k - subcooling_k;
-  m_dot_circuit_kg_s_1  = m_dot_kg_s;
-  m_dot_circuit_kg_s_2  = m_dot_kg_s;
+  m_dot_circuit_kg_s_1  = evap1.InFlow.m_flow;
+  m_dot_circuit_kg_s_2  = evap2.InFlow.m_flow;
   p_cond_in_pa          = p_discharge_pa;
   /* p_suction_pa and p_evap_out_pa are BOTH the evaporator outlet and are equal by
      definition, which is correct -- they are the same physical point. What changed
@@ -876,8 +1020,8 @@ equation
      drop, which is what a gauge on the drier outlet actually reads. */
   p_txv_inlet_pa        = liquid_line.OutFlow.p;
   dp_liquid_pa          = liquid_line.dp_suction_pa;
-  superheat_circuit_k_1 = superheat_k;
-  superheat_circuit_k_2 = superheat_k;
+  superheat_circuit_k_1 = Med.temperature_ph(evap1.OutFlow.p, evap1.OutFlow.h_outflow) - T_evap_sat_k;
+  superheat_circuit_k_2 = Med.temperature_ph(evap2.OutFlow.p, evap2.OutFlow.h_outflow) - T_evap_sat_k;
   superheat_mixed_k     = superheat_k;
 
   /* ---------------- residuals, reported separately ---------------- */
