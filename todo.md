@@ -54,12 +54,22 @@ thermostat senses `T_air_off_evap_k`, the coil-outlet air, which rebounds at a r
 evaporator's own mass. **So raise evaporator thermal mass, not `C_air`.** Model OFF is ~1.5 min
 against 5.6 — a factor 3.7, needing roughly 16 kg equivalent against the current 4.3 kg.
 
-**BLOCKED 2026-08-08 by an initialisation confound — fix this before any more sweeps.**
-`T_prod` initialises at `T_box_k` = 252.4 K, *below* the 253.95 K cut-in, so the product starts
-as a huge cold reservoir holding the air down. The compressor barely runs (duty 6–13 % against
-a measured 74–85 %) and with a 1500 s product time constant an 8000 s run has not equilibrated.
-**Every duty and period number from those sweeps is a transient, not a settled cycle**, and no
-parameter should be chosen from one.
+**UNBLOCKED 2026-08-08.** `T_prod_start_k` is now its own `Evaluate=false` parameter — the old
+`start = T_box_k` was bound at compile time and could not be set (verified). Starting the product
+inside the thermostat band instead of below it fixed the confound:
+
+| `UA_prod` | `C_air` | duty % | period min | OFF min |
+|---|---|---|---|---|
+| 2000 | 1.8e3 | 93.1 | 13.81 | 0.64 |
+| 2000 | 5.0e4 | **80.0** | 11.13 | 0.76 |
+
+**Duty now lands inside the measured 74–85 % band** — it read 6–13 % at every setting before.
+That number is trustworthy now; the two time constants are not. Period 11.1 vs 23.6/39.3
+measured, OFF 0.76 vs 5.6.
+
+**Next:** fit `C_air` to the PERIOD (it is the clean handle for that), then revisit OFF. Coil
+mass governs OFF but 16 kg fails to integrate and 40 kg balloons the period — frost *sensible*
+heat is the open candidate for mass geometry can't supply.
 
 Coil-mass sweep, for the record — it does *not* reach the target either:
 
@@ -123,10 +133,13 @@ The calibrated point moved four times, all correct physics that was missing:
 Q_evap is now **674 W**, still inside the measured 610–891 W band, but the §1 table predates
 all of it. Run `python scratch/compare_to_measured.py` and re-bless before anyone quotes it.
 
-### 1.5 Discharge-line pressure drop
-Last of the three lines. 89 in of 0.194 in ID carrying dense hot gas. Copy the pattern from
-`SuctionLine`. Lowest value of the three — it raises actual discharge pressure above condensing
-pressure, affecting work slightly. Best done alongside flash-gas work.
+### 1.5 Discharge-line pressure drop — **ATTEMPTED, BREAKS THE MODEL**
+A third `SuctionLine` between `comp.OutFlow` and `cond.InFlow` took the gate to **0/3**.
+Reverted. Attribution is clean: it was batched with `T_prod_start_k`, the pair failed, and
+`T_prod_start_k` alone then gated 3/3 — so the discharge line is unambiguously the cause.
+Likely the stiffest node in the model cannot take a component carrying its own mass and energy
+state, and/or `h_start` 6.5e5 is wrong for the actual discharge. **Lowest value of the three
+lines — do not burn many cycles.** Full options in the task record.
 
 ### 1.6 Flash gas upstream of the TXV
 A restricted drier now produces realistic Δp (75 % blocked → 33 psi) but **capacity barely

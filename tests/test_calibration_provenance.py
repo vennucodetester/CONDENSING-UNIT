@@ -143,6 +143,17 @@ CALIBRATED = {
         "gate does not move. Lowering it decouples the nodes and is the calibration handle. "
         "Targets, all measured and none yet used to tune: duty 85.0 %, ON 16 min, OFF 6 min, "
         "period 22 min - four independent constraints for three parameters"),
+    "M_evap_wall_kg": (
+        4.3,
+        "AS-BUILT GEOMETRY, not fitted: 2.29 kg copper tube and bends from the drawing "
+        "(docs/AS_BUILT_GEOMETRY.md section 2) plus about 2 kg assumed aluminium fins; "
+        "total covers both circuits and remains a geometry estimate pending measured fin mass"),
+    "T_prod_start_k": (
+        255.37,
+        "Numeric default equals the 255.37 K T_box_k default for backward compatibility "
+        "while keeping initialization independently settable in the FMU. Cycling studies "
+        "override it with measured AVG Prod Temp, 0.08-0.13 F (about 255.43 K), above the "
+        "thermostat air band"),
     "T_room_k": (
         299.71,
         "79.8 F, the MEASURED room ambient, median across all three campaigns. This is NOT "
@@ -356,9 +367,9 @@ class CalibrationProvenance(unittest.TestCase):
         """A new tunable parameter must be added here deliberately, so that adding one
         is a decision rather than an accident."""
         known = set(CALIBRATED) | set(SWITCHES)
-        tunable = {n for n in self.found
-                   if re.search(rf"parameter\s+\S+\s+{n}\b[^\n]*Evaluate=false",
-                                MO.read_text(encoding="utf-8", errors="replace"))}
+        text = MO.read_text(encoding="utf-8", errors="replace")
+        tunable = set(re.findall(
+            r"parameter\s+(?:Real|Integer|Boolean)\s+(\w+)\b[^\n]*Evaluate=false", text))
         self.assertEqual(
             tunable - known, set(),
             "new tunable parameter(s) with no provenance entry — add them to CALIBRATED "

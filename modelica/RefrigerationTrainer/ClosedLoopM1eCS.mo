@@ -801,7 +801,21 @@ model ClosedLoopM1eCS
   output Real Q_box_load_w(unit="W") "box internal heat load";
   output Real Q_box_leak_w(unit="W") "cabinet heat leak from room air";
   output Real box_imbalance_w(unit="W") "load + leak - Q_evap. Zero at equilibrium";
-  Real T_prod_k(unit="K", start = T_box_k, fixed = true) "product temperature - a STATE, carries the bulk energy";
+  /* start promoted to its own parameter 2026-08-08. It was `start = T_box_k`, bound at
+     COMPILE time and not settable from start_values - verified: setting T_prod_k directly
+     returned T_box_k unchanged.
+     WHY IT MATTERS: T_box_k is 252.4 K, BELOW the 253.95 K cut-in, so the product began
+     every cycling run as a huge cold reservoir holding the air down. Duty came out 6-13 %
+     against a measured 74-85 %, and with a 1500 s product time constant an 8000 s run never
+     equilibrated. Every duty and period number from those sweeps was a transient and no
+     parameter could honestly be chosen from one. This is what blocked the calibration. */
+  /* Literal 255.37, NOT `= T_box_k`. Two reasons. The provenance guard scans for
+     `parameter <type> <name> = <number>` and cannot see an expression default, so binding it
+     to T_box_k left it unguarded. And the coupling is wrong anyway: cycling studies seed
+     the AIR inside the thermostat band but seed the PRODUCT from measured AVG Prod Temp,
+     above that band. 255.37 K is the same value T_box_k carries, so default behaviour is unchanged. */
+  parameter Real T_prod_start_k(unit="K") = 255.37 "product initial temperature - do not start below cut-in" annotation(Evaluate=false);
+  Real T_prod_k(unit="K", start = T_prod_start_k, fixed = true) "product temperature - a STATE, carries the bulk energy";
   output Real Q_prod_w(unit="W") "air-to-product heat exchange";
   output Real Q_door_w(unit="W") "door infiltration load, pulsed. Zero between openings";
   output Real Q_door_avg_w(unit="W") "time-average of the door load - use this for equilibrium";
