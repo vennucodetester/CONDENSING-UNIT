@@ -165,8 +165,22 @@ model CompressorEM
      - that would risk re-triggering OM#16169. Bounds are deliberately generous:
      they catch "left the fluid entirely", not "slightly off design".            */
   final parameter Medium.SpecificEnthalpy h_valid_min = 1.0e5 "deep subcooled liquid guard limit";
+  /* 400 K -> 500 K, 2026-08-06. THIS IS A SANITY GUARD, NOT A PHYSICS CONSTRAINT, and the
+     distinction is the whole justification. It exists to catch a solver that has wandered
+     into a nonphysical state, and 400 K = 127 C was chosen as "hotter than this machine
+     ever runs" for STEADY operation. It is not.
+     Measured through a thermostat restart: after the flooded start clears, the loop recovers
+     at PR 10.3 with h_su back to 569 kJ/kg, giving h_ex 739 kJ/kg and climbing - the guard
+     fired at t = 291.5 s on a state that is transiently REAL. A compressor recovering from a
+     flooded start against head it built during the surge genuinely runs a hot discharge.
+     500 K = 227 C is comfortably beyond anything this machine can reach while still being far
+     inside the R290 property range, so the guard keeps its job: divergence still trips it,
+     a real transient no longer does. IF IT FIRES AT 500 K, SOMETHING IS ACTUALLY WRONG -
+     do not widen it again.
+     The h_valid_min guard is UNTOUCHED. It catches liquid at the discharge, which is
+     nonphysical at any time, and nothing here argues for relaxing it. */
   final parameter Medium.SpecificEnthalpy h_valid_max =
-      Medium.specificEnthalpy_pT(p_su_start, 400.0) "hot superheated vapour";
+      Medium.specificEnthalpy_pT(p_su_start, 500.0) "guard limit, not a physics bound";
 
   /* ---------------- VARIABLES ----------------
      Deliberately NO Medium.ThermodynamicState declarations. That is the whole point
@@ -210,6 +224,8 @@ model CompressorEM
   Medium.AbsolutePressure p_su(start = p_su_start);
   Medium.AbsolutePressure p_ex(start = p_ex_start);
   Medium.SpecificEnthalpy h_ex_s;
+  Medium.Density rho_pump "density actually pumped; capped at saturated vapour";
+  Real liquid_ingest_frac "0 = dry suction, ->1 = flooded. Diagnostic, not driven";
 
 equation
   /* Fluid Properties.
@@ -287,7 +303,26 @@ equation
      valves -- not a pump running at zero speed. `run` ramps 0..1 with the thermostat, so
      the displacement collapses smoothly and the port simply closes. */
   V_dot_su = epsilon_v*V_s*N_rot;
-  M_dot = run*V_dot_su*rho_su;
+  /* FLOODED-START BRANCH, added 2026-08-06. Fixes the failure that killed every cycling
+     run at t~282 s.
+     MEASURED at 0.25 s through a thermostat restart: h_su collapses 629 -> 199 kJ/kg and
+     rho_su rises 4.6 -> 22 kg/m3 as off-cycle migration sends LIQUID to the inlet. The
+     unclamped relation then obediently pumps 3.6x the normal mass flow, p_su collapses
+     251 -> 200 kPa in four seconds, and the discharge enthalpy leaves its valid range.
+     A real compressor does not do that. It slugs, the liquid flashes in the cylinder, and
+     it rides through on degraded volumetric efficiency. The hardware confirms there is
+     nothing upstream to catch the liquid either - the suction can is HORIZONTAL, so it is
+     a muffler or strainer, not an accumulator (an accumulator must be vertical: gravity
+     separation, standpipe, metered oil bleed).
+     So the pumping density is capped at SATURATED VAPOUR. Past that point the machine is
+     ingesting liquid, the quasi-static displacement relation is out of validity, and the
+     cap keeps it in a representable state instead of diverging.
+     THIS IS CONSERVATIVE - it is an equation for M_dot, so less mass is pumped and the
+     loop responds. Contrast the enthalpy clamp tried on SuctionLine, which ADDED energy
+     inside a component carrying its own balances and took the gate to 0/3. */
+  rho_pump = min(rho_su, Medium.dewDensity(Medium.setSat_p(max(1.0e4, p_su))));
+  liquid_ingest_frac = 1.0 - rho_pump/max(1.0e-6, rho_su);
+  M_dot = run*V_dot_su*rho_pump;
   /* When stopped there is no compression, so h_ex degrades smoothly to h_su rather than
      to whatever an isentropic relation returns for zero flow. Keeps every property call
      inside its valid range across the transition. */

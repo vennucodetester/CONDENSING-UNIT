@@ -76,8 +76,12 @@ model SuctionLine
      the line size raises the drop by ~32x - a strong, visible, teachable effect and the
      thing task #34 was waiting for.
      mdot*|mdot| rather than mdot^2 so the law stays correct if flow ever reverses. */
-  parameter Modelica.Units.SI.Length L_suction_m = 1.016 "straight length, 40 in";
-  parameter Modelica.Units.SI.Length D_suction_m = 0.006502 "internal diameter, 0.256 in";
+  parameter Modelica.Units.SI.Length L_suction_m = 1.016 "straight length, 40 in" annotation(Evaluate=false);
+  /* Evaluate=false added 2026-08-06: without it OMC folds these at compile time and they
+     cannot be swept. Found the hard way - sweeping the distributor bore changed NOTHING,
+     which is how the real cause of a 9.1 % capacity loss (Mdotnom) got isolated. Needed
+     for maldistribution work: unequal dist1/dist2 bores are the physical feed-split handle. */
+  parameter Modelica.Units.SI.Length D_suction_m = 0.006502 "internal diameter, 0.256 in" annotation(Evaluate=false);
   parameter Integer n_bends = 7 "bends of various angles";
   parameter Real bend_L_over_D = 30.0 "equivalent length per bend, in diameters";
   parameter Real f_darcy = 0.025 "Darcy friction factor, turbulent smooth copper";
