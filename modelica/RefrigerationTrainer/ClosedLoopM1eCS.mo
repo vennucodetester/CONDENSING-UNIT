@@ -115,6 +115,35 @@ model ClosedLoopM1eCS
      product sensor may be inside a package and lagging, so that swing is a LOWER bound on
      the true one and C_prod an UPPER bound. Calibrate against the CYCLE PERIOD, which is
      robust, not against the 0.05 F swing, which may be sensor-limited. */
+  /* ================= DOOR OPENINGS, added 2026-08-06 =================
+     USER SPEC: "a certain amount of heat load for a certain number of seconds at a certain
+     frequency." Three parameters, which is exactly that:
+         Q_door_peak_btu_hr   infiltration load WHILE the door is open
+         door_open_s          how long each opening lasts
+         door_period_s        interval between openings
+     A DOE schedule quoted as openings per hour converts as door_period_s = 3600/openings.
+     6 openings/hour -> 600 s; 1 per minute -> 60 s.
+
+     IT LANDS ON THE AIR NODE, not the product. Infiltration is warm moist room air pushed
+     into the case; it hits the air first and reaches the product only through UA_prod. That
+     ordering is the whole reason a door opening shows up as a fast air-temperature spike
+     while product temperature barely moves - which is what the DOE test is measuring.
+
+     DEFAULT IS OFF and Q_door_peak_btu_hr is 0. NO DEFAULT MAGNITUDE IS INVENTED: the
+     campaigns contain no door-opening events (they are closed-door 24 h runs, and the eight
+     "Door" channels are temperature sensors AT the doors, not door-state signals), so there
+     is nothing in this project's data to derive a load from. The user supplies it or it
+     comes from the DOE schedule for the equipment class.
+
+     FOR EQUILIBRIUM WORK use the time-AVERAGE, which is reported as Q_door_avg_w:
+         average = peak * door_open_s / door_period_s
+     The pulse itself only matters for the transient - which is the interesting part, since
+     the DOE result is about RECOVERY, not steady state. */
+  parameter Boolean door_openings_enabled = false "true: cycle the door open on a fixed schedule" annotation(Evaluate=false);
+  parameter Real Q_door_peak_btu_hr = 0.0 "infiltration load WHILE open [BTU/hr]" annotation(Evaluate=false);
+  parameter Real door_open_s = 12.0 "seconds the door stays open each time" annotation(Evaluate=false);
+  parameter Real door_period_s = 600.0 "seconds between openings; 3600/openings-per-hour" annotation(Evaluate=false);
+
   parameter Real C_air_j_k = 1.8e3 "box AIR capacitance [J/K] - what the thermostat senses" annotation(Evaluate=false);
   parameter Real C_prod_j_k = 1.042e5 "PRODUCT capacitance [J/K] - where the energy actually goes" annotation(Evaluate=false);
   parameter Real UA_prod_w_k = 1.0e5 "air-to-product coupling [W/K]. Huge by default = one lump" annotation(Evaluate=false);
@@ -755,6 +784,8 @@ model ClosedLoopM1eCS
   output Real box_imbalance_w(unit="W") "load + leak - Q_evap. Zero at equilibrium";
   Real T_prod_k(unit="K", start = T_box_k, fixed = true) "product temperature - a STATE, carries the bulk energy";
   output Real Q_prod_w(unit="W") "air-to-product heat exchange";
+  output Real Q_door_w(unit="W") "door infiltration load, pulsed. Zero between openings";
+  output Real Q_door_avg_w(unit="W") "time-average of the door load - use this for equilibrium";
 
   output Real T_air_in_evap_k(unit="K");
   output Real T_air_off_evap_k(unit="K");
@@ -953,8 +984,13 @@ equation
      Product node: coupled to the air only. der() is present in BOTH branches of every
      switch so the structural index never changes with a parameter. */
   Q_prod_w = UA_prod_w_k * (T_box_air_k - T_prod_k);
+  /* mod() generates the crossings, so the pulse is a real event rather than something the
+     solver steps over. Guarded by the Boolean so the default costs no events at all. */
+  Q_door_w = if door_openings_enabled and mod(time, door_period_s) < door_open_s
+             then Q_door_peak_btu_hr/3.412142 else 0.0;
+  Q_door_avg_w = Q_door_peak_btu_hr/3.412142 * door_open_s / max(1.0, door_period_s);
   der(T_box_air_k) = if box_thermal_model
-    then (Q_box_load_w + Q_box_leak_w - Q_evap_w - Q_prod_w) / C_air_j_k
+    then (Q_box_load_w + Q_box_leak_w + Q_door_w - Q_evap_w - Q_prod_w) / C_air_j_k
     else 0.0;
   der(T_prod_k) = if box_thermal_model then Q_prod_w / C_prod_j_k else 0.0;
   box_imbalance_w = Q_box_load_w + Q_box_leak_w - Q_evap_w;

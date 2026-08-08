@@ -98,6 +98,25 @@ CALIBRATED = {
         "from the measured cycle period: 37 run blocks in 1440 min = ~39 min, so ~5.9 min "
         "off, warming 2 K at 605 W -> 605*351/2 = 1.06e5 J/K. Air is negligible; this is "
         "fixture plus product mass"),
+    # --- door openings, added 2026-08-06 to the user's spec ------------------
+    # "a certain amount of heat load for a certain number of seconds at a certain
+    # frequency". DOE schedules quoted as openings/hour convert as period = 3600/openings.
+    "Q_door_peak_btu_hr": (
+        0.0,
+        "ZERO BY DESIGN - no default magnitude is invented. The campaigns contain NO "
+        "door-opening events: both are closed-door 24 h runs, and the eight 'Door' channels "
+        "are temperature sensors AT the doors, not door-state signals. There is nothing in "
+        "this project's data to derive an infiltration load from, so it comes from the DOE "
+        "schedule for the equipment class or from the user"),
+    "door_open_s": (
+        12.0,
+        "seconds the door stays open per event. A nominal DOE-style opening duration; it is "
+        "a SCHEDULE parameter, not a fitted one, and carries no weight until a real schedule "
+        "is supplied"),
+    "door_period_s": (
+        600.0,
+        "seconds between openings = 3600/openings-per-hour, so 600 s is 6 per hour. Same "
+        "status as door_open_s: a placeholder schedule awaiting the real one"),
     # --- two-capacitance box, added 2026-08-06 -------------------------------
     # Forced by measurement: over 33 clean off-blocks every air channel swings 5-7 F in
     # six minutes while AVG Prod Temp moves 0.05 F. Two masses, not one. A single C_box
@@ -157,6 +176,12 @@ SWITCHES = {
     "txv_setpoint_lever":        (True,  "ON since 2026-08-06, user-approved. The thermostatic element whose screw moves the SETPOINT: coil superheat 8.19 -> 2.56 K against a measured 1.27 K. It was defaulted OFF for one day because it returned 5/6 on test_more_mass_flow_raises_discharge_pressure, whose claim turned out to be the thing that was wrong: at fixed displacement the COMPRESSOR sets mass flow, so that test now drives compressor_speed_frac. The valve keeps its own test on superheat setpoint tracking. Legacy law still reachable at false"),
     "hot_gas_solenoid_open":     (False, "nominal steady running state, solenoid as found in the measured windows"),
     "liquid_line_solenoid_open": (True,  "nominal steady running state, solenoid as found in the measured windows"),
+    "door_openings_enabled": (
+        False,
+        "OFF by default so the gate is unaffected and no events are generated. When TRUE the "
+        "door load pulses onto the AIR node - infiltration is warm room air entering the "
+        "case, reaching the product only through UA_prod, which is why a door opening is a "
+        "fast air spike while product barely moves. Requires box_thermal_model = true"),
     "box_thermostat": (
         False,
         "OFF by default 2026-08-06 so the legacy always-running path is preserved. When TRUE "
