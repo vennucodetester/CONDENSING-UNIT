@@ -1,9 +1,10 @@
 # TODO — R290 refrigeration trainer
 
-**State as of 2026-08-06.** Gate `bash ./gate.sh --repeat 3` → **3/3 runs at 7/7**.
-Provenance tests 6/6. Everything committed and pushed at **`4ba1936`**.
+**State as of 2026-08-08.** Gate `bash ./gate.sh --repeat 3` → **3/3 runs at 7/7**.
+Provenance tests **7/7**. Everything committed and pushed.
 
-Nothing below is started. Awaiting approval before any work begins.
+§1.2 (flooded start) and §1.3(c) and §1.7 are **done**. §1.1 is blocked on an initialisation
+confound described below. §1.4–1.6 are untouched.
 
 ---
 
@@ -53,11 +54,30 @@ thermostat senses `T_air_off_evap_k`, the coil-outlet air, which rebounds at a r
 evaporator's own mass. **So raise evaporator thermal mass, not `C_air`.** Model OFF is ~1.5 min
 against 5.6 — a factor 3.7, needing roughly 16 kg equivalent against the current 4.3 kg.
 
-Order: (1) OFF period via coil mass — check real fin mass first; (2) if geometry can't reach it,
-frost *sensible* heat is the candidate and §3's dismissal needs revisiting (see note there);
-(3) then `C_air` for the period; (4) duty last, and only after longer runs — at `C_prod` 3.0e6
-the product time constant is 1500 s and an 8000 s run has not settled, which is why duty
-currently reads 5–13 %.
+**BLOCKED 2026-08-08 by an initialisation confound — fix this before any more sweeps.**
+`T_prod` initialises at `T_box_k` = 252.4 K, *below* the 253.95 K cut-in, so the product starts
+as a huge cold reservoir holding the air down. The compressor barely runs (duty 6–13 % against
+a measured 74–85 %) and with a 1500 s product time constant an 8000 s run has not equilibrated.
+**Every duty and period number from those sweeps is a transient, not a settled cycle**, and no
+parameter should be chosen from one.
+
+Coil-mass sweep, for the record — it does *not* reach the target either:
+
+| `M_evap_wall_kg` | duty % | period min | OFF min |
+|---|---|---|---|
+| 4.3 (geometry) | 12.7 | 18.80 | 1.51 |
+| 16.0 | — | — | **fails to integrate, CVode −8** |
+| 40.0 | 6.5 | 121.79 | unmeasurable |
+
+Order: (1) **give `T_prod` a realistic start value** — run `box_equilibrium.py` first and start
+there; (2) re-check the OFF period at the geometry value 4.3 kg, which may look very different
+once the product is not fighting the thermostat; (3) only then ask whether more coil mass is
+needed — 16 kg does not integrate, so it would have to arrive another way, and frost *sensible*
+heat is the open candidate; (4) target the OFF period only.
+
+**Nothing was changed from defaults.** `M_evap_wall_kg` stays at the geometry value 4.3,
+`C_air` at 1.8e3, `UA_prod` tightly coupled. No fitted value has been adopted and the gate is
+green.
 
 **Process note:** one sweep at a time, or unique output files. Concurrent background runs
 writing the same results file produced garbage once already.

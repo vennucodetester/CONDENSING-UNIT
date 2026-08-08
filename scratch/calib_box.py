@@ -20,7 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scratch"))
 from fmpy import simulate_fmu  # noqa: E402
 from compare_to_measured import SV  # noqa: E402
 
-CASES = [(2000.0, 2.0e5, 3.0e6), (2000.0, 3.2e5, 3.0e6), (2000.0, 4.5e5, 3.0e6)]
+# (UA_prod, C_air, C_prod, M_evap_wall_kg) -- targeting the OFF period via coil mass
+CASES = [(2000.0, 2.0e5, 3.0e6, 4.3), (2000.0, 2.0e5, 3.0e6, 16.0), (2000.0, 2.0e5, 3.0e6, 40.0)]
 RESULT = Path(__file__).resolve().parent / "calib_box_result.txt"
 
 
@@ -31,8 +32,8 @@ def main() -> None:
             out.write(line + "\n")
             out.flush()
 
-        emit("%-9s %-10s %-10s %7s %7s %10s %9s" % ("UA_prod", "C_air", "C_prod", "switch", "duty%", "period", "OFF min"))
-        for ua, cair, cp in CASES:
+        emit("%-9s %-10s %-8s %7s %7s %10s %9s" % ("UA_prod", "C_air", "M_wall", "switch", "duty%", "period", "OFF min"))
+        for ua, cair, cp, mw in CASES:
             sv = dict(SV)
             sv["box_thermal_model"] = True
             sv["box_thermostat"] = True
@@ -40,6 +41,7 @@ def main() -> None:
             sv["UA_prod_w_k"] = ua
             sv["C_air_j_k"] = cair
             sv["C_prod_j_k"] = cp
+            sv["M_evap_wall_kg"] = mw
             try:
                 r = simulate_fmu("fmu/RefrigerationTrainer.fmu", start_values=sv,
                                  stop_time=8000.0, output_interval=5.0, validate=False,
@@ -53,9 +55,9 @@ def main() -> None:
                 # and campaign-dependent, so it is a distribution check, not a fit target.
                 offs = [len(x) for x in np.split(on, sw + 1) if not x[0]]
                 offm = np.mean(offs[1:-1]) * 5 / 60 if len(offs) > 2 else float("nan")
-                emit("%-9.0f %-10.2e %-10.2e %7d %7.1f %10.2f %9.2f" % (ua, cair, cp, len(sw), 100 * on.mean(), per, offm))
+                emit("%-9.0f %-10.2e %-8.1f %7d %7.1f %10.2f %9.2f" % (ua, cair, mw, len(sw), 100 * on.mean(), per, offm))
             except Exception as exc:
-                emit("%-9.0f %-10.2e %-10.2e FAILED %s" % (ua, cair, cp, str(exc)[:40]))
+                emit("%-9.0f %-10.2e %-8.1f FAILED %s" % (ua, cair, mw, str(exc)[:40]))
         emit("measured NSF: duty 74.1 pct, cycle 23.6 min, OFF 5.6 min (p10-p90 5-6)")
         emit("measured DOE: duty 84.7 pct, cycle 39.3 min, OFF 5.8 min (p10-p90 5-6)")
 

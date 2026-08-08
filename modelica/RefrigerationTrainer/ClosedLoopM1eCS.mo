@@ -144,6 +144,25 @@ model ClosedLoopM1eCS
   parameter Real door_open_s = 12.0 "seconds the door stays open each time" annotation(Evaluate=false);
   parameter Real door_period_s = 600.0 "seconds between openings; 3600/openings-per-hour" annotation(Evaluate=false);
 
+  /* EVAPORATOR WALL MASS, promoted to a sweepable parameter 2026-08-08.
+     WHY: the thermostat senses T_air_off_evap_k, the COIL-OUTLET air. When the compressor
+     stops, that temperature rebounds toward box air at a rate set by the EVAPORATOR's own
+     mass, not the box's. Measured: sweeping C_air 2.0e5 -> 4.5e5 moved the cycle period
+     18.8 -> 44 min but the OFF period only 1.51 -> 2.04 min. So C_air can never fix the OFF
+     period and this is the parameter that can.
+     TARGET is the OFF period, which is the ONLY tight measurement in the cycling data:
+     5.6 min (NSF) and 5.8 min (DOE), both with a p10-p90 of just 5-6 min. ON is badly
+     skewed (DOE mean 33.3 against median 16) and duty differs between campaigns
+     (74.1 vs 84.7 %), so neither is a fit target.
+     4.3 kg is the geometry estimate: 2.29 kg of copper tube and bends from the drawing plus
+     ~2 kg assumed fin. Model OFF is ~1.5 min against 5.6, so roughly 16 kg equivalent would
+     be needed - about 3.7x. CHECK REAL FIN MASS BEFORE ACCEPTING ANY FITTED VALUE. If the
+     drawing cannot supply it, frost SENSIBLE heat is the remaining candidate (~6 kg of ice
+     at 2100 J/kgK), and the earlier dismissal of frost in task #39 was against an energy
+     requirement that was itself wrong.
+     Split 0.5 each across the two circuits, matching the geometry split. */
+  parameter Real M_evap_wall_kg = 4.3 "TOTAL evaporator wall mass, both circuits [kg]" annotation(Evaluate=false);
+
   parameter Real C_air_j_k = 1.8e3 "box AIR capacitance [J/K] - what the thermostat senses" annotation(Evaluate=false);
   parameter Real C_prod_j_k = 1.042e5 "PRODUCT capacitance [J/K] - where the energy actually goes" annotation(Evaluate=false);
   parameter Real UA_prod_w_k = 1.0e5 "air-to-product coupling [W/K]. Huge by default = one lump" annotation(Evaluate=false);
@@ -695,11 +714,11 @@ model ClosedLoopM1eCS
      of 22, and the steady-state gate is unaffected because a capacitance changes only
      the path to equilibrium, not equilibrium itself. */
   ThermoCycle.Components.HeatFlow.Walls.MetalWall wall_evap1(
-    N = N, Aext = 0.286, Aint = 0.286, M_wall = 2.15, c_wall = 600,
+    N = N, Aext = 0.286, Aint = 0.286, M_wall = 0.5*M_evap_wall_kg, c_wall = 600,
     Tstart_wall_1 = T_box_k, Tstart_wall_end = T_box_k, steadystate_T_wall = true);
 
   ThermoCycle.Components.HeatFlow.Walls.MetalWall wall_evap2(
-    N = N, Aext = 0.286, Aint = 0.286, M_wall = 2.15, c_wall = 600,
+    N = N, Aext = 0.286, Aint = 0.286, M_wall = 0.5*M_evap_wall_kg, c_wall = 600,
     Tstart_wall_1 = T_box_k, Tstart_wall_end = T_box_k, steadystate_T_wall = true);
 
   /* Proportional TXV Control Law signal & block driver */

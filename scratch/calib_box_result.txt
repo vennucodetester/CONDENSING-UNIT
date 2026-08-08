@@ -1,6 +1,6 @@
-UA_prod   C_air      C_prod      switch   duty%     period   OFF min
-2000      2.00e+05   3.00e+06        16    12.7      18.80      1.51
-2000      3.20e+05   3.00e+06        10     8.9      32.58      1.58
-2000      4.50e+05   3.00e+06         7     5.8      44.05      2.04
+UA_prod   C_air      M_wall    switch   duty%     period   OFF min
+2000      2.00e+05   4.3           16    12.7      18.80      1.51
+2000      2.00e+05   16.0     FAILED CVode error (code -8) in module CVODE, f
+2000      2.00e+05   40.0           3     6.5     121.79       nan
 measured NSF: duty 74.1 pct, cycle 23.6 min, OFF 5.6 min (p10-p90 5-6)
 measured DOE: duty 84.7 pct, cycle 39.3 min, OFF 5.8 min (p10-p90 5-6)
