@@ -85,11 +85,28 @@ that was only 3.7×; this asks for 10×. The storage has to arrive as a **phase-
   that's available from frost as currently understood
 - ice, *if any melts* → **0.24 kg** — two orders of magnitude less
 
-That last line is the one to chase. It says the gap closes trivially **if even a little phase
-change occurs at the coil surface** during the off cycle. The bulk coil staying below 0 °C does
-not settle what happens in the surface film, and boiling of migrated refrigerant in the coil is
-a phase-change term that is only partly represented. **This is the next real question**, and it
-is a physics question, not a fitting one.
+**ANSWERED 2026-08-08 — and it is neither frost nor metal. It is MISSING CHARGE.**
+
+Measured over a settled off block: `M_evap` 7.63 → **41.02 g** while `M_cond` 35.81 → **2.40 g**
+— a third of the coil inventory migrates in half a minute and **the condenser drains dry**.
+Boiling that migrated liquid gives 13.4 kJ, over half the 24 kJ needed.
+
+It stops short because migration is capped by **how much charge the model holds**, not by
+physics. Total coil inventory is ~43 g and all of it is already moving, so the ceiling is
+43 g × 400 kJ/kg = 17 kJ. The real machine has **110 g** — `charge_inventory.py` accounts 65.3
+and leaves **44.7 g in the compressor shell and oil, which the model holds nowhere**. At 80 g
+migrating the latent term is 32 kJ, comfortably over.
+
+The chain: coil-only charge → migration capped at 43 g → latent capped at 17 kJ → coil warms
+too fast → OFF 0.55 min instead of 5.6 → duty 97 % instead of 74–85 %.
+
+**Frost was reached twice by elimination, and both times the elimination was against a
+requirement with a missing term in it.** This explanation needs no ice at all.
+
+**Next, and far smaller than a frost model:** give the compressor a suction-side shell volume
+so the charge has somewhere to live. `charge_hstart_scale` sets total charge and
+`M_evap_kg`/`M_cond_kg` expose the split, so the instrumentation exists. Gate it alone —
+adding storage to the *discharge* side already took the gate to 0/3 (§1.5).
 
 Coil-mass sweep, for the record — it does *not* reach the target either:
 

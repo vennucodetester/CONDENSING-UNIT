@@ -60,14 +60,12 @@ class FmuEngine:
         self.nominal_condenser_airflow_m3_s = nominal_condenser_airflow_m3_s
         self._validate_interface()
 
-    # Per-coil charge is a component variable inside the model, not a top-level
-    # output, so the app's friendly key is mapped onto the real FMU name here
-    # rather than renaming things in the Modelica source (which would force an
-    # FMU rebuild for a display-only change). `evap`/`cond` are the two
-    # Flow1Dim exchangers in ClosedLoopM1eCS.
+    # Friendly app keys map to the current dual-circuit model's top-level totals.
+    # Using the old pre-split `evap.M_tot` name rejected the valid FMU and forced
+    # the entire app onto the illustrative demo engine.
     OUTPUT_ALIASES = {
-        "M_charge_evap_kg": "evap.M_tot",
-        "M_charge_cond_kg": "cond.M_tot",
+        "M_charge_evap_kg": "M_evap_kg",
+        "M_charge_cond_kg": "M_cond_kg",
     }
 
     @classmethod
