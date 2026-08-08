@@ -12,6 +12,13 @@ class CapabilityTest(unittest.TestCase):
         for capability in unavailable:
             self.assertTrue(capability.reason)
 
+    def test_defrost_and_charge_are_truthfully_unavailable(self):
+        result = DemoAirflowEngine().run(EngineInput())
+        capabilities = {cap.id: cap for cap in result.capabilities}
+        self.assertFalse(capabilities["defrost"].available)
+        self.assertFalse(capabilities["charge"].available)
+        self.assertIn("110 g", capabilities["charge"].reason)
+
 
 if __name__ == "__main__":
     unittest.main()

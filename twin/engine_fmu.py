@@ -270,8 +270,16 @@ class FmuEngine:
             capabilities=(
                 Capability("airflow", "Evaporator airflow", True, "Driven through the loaded FMU."),
                 Capability("txv", "TXV", True, "Driven through the loaded FMU."),
-                Capability("charge", "Refrigerant charge (g)", False, "M3 inventory model and nameplate charge required."),
-                Capability("defrost", "Hot-gas mode", True, "Valve commands are wired; thermal validation depends on FMU maturity."),
+                Capability(
+                    "charge", "Refrigerant charge (g)", False,
+                    "The 110 g R290 nameplate is known; full M3 inventory and clean "
+                    "reinitialization physics are not implemented."
+                ),
+                Capability(
+                    "defrost", "Hot-gas mode", False,
+                    "Unavailable: both solenoid parameters are declaration-only and the "
+                    "FMU has no hot-gas valve/check-valve network or control authority."
+                ),
             ),
             assumptions=("Nominal airflows are supplied by the selected case configuration.",),
             warnings=("FMU output is not validated equipment data yet.",),

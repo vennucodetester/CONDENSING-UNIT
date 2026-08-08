@@ -60,11 +60,12 @@ class UiWorkflowTest(unittest.TestCase):
         self.assertNotIn("p_suction_pa", editable)
         self.assertNotIn("p_discharge_pa", editable)
 
-    def test_defrost_command_swaps_the_two_solenoid_states(self):
+    def test_defrost_command_is_disabled_until_it_has_fmu_authority(self):
         self.window._select_component("hot_gas_solenoid")
+        self.assertFalse(self.window.component_controls.valve_toggle.isEnabled())
         self.window.component_controls.valve_toggle.setChecked(True)
-        self.assertTrue(self.window.valve_states["hot_gas_solenoid"])
-        self.assertFalse(self.window.valve_states["liquid_line_solenoid"])
+        self.assertFalse(self.window.valve_states["hot_gas_solenoid"])
+        self.assertTrue(self.window.valve_states["liquid_line_solenoid"])
 
     def test_charge_control_is_grouped_under_suction_header(self):
         self.window._select_component("header")

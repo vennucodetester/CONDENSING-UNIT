@@ -269,7 +269,7 @@ class Schematic(QWidget):
         # never changes a result -- the model holds the two coils and nothing else,
         # so this exists purely to show how much of the real charge is unaccounted
         # for. Making it drive anything would be inventing physics the model lacks.
-        self.nameplate_charge_g = 100.0
+        self.nameplate_charge_g = 110.0
         self.setMinimumHeight(650)
         self.setMouseTracking(True)
 
@@ -1195,6 +1195,11 @@ class ComponentControls(QFrame):
 
         self.valve_toggle = QCheckBox()
         self.valve_toggle.toggled.connect(self._valve_changed)
+        self.valve_toggle.setEnabled(False)
+        self.valve_toggle.setToolTip(
+            "Unavailable: the current FMU declares both solenoid commands but has no "
+            "valve network, so changing them does not affect any calculated output."
+        )
         layout.addWidget(self.valve_toggle)
 
         # Calculate lives HERE, beside the inputs, so a change and its recompute
@@ -1307,7 +1312,7 @@ class ComponentControls(QFrame):
         if is_defrost_control:
             self.valve_toggle.blockSignals(True)
             self.valve_toggle.setChecked(self.defrost_active)
-            self.valve_toggle.setText("Hot-gas path selected" if self.defrost_active else "Cooling path selected")
+            self.valve_toggle.setText("Defrost unavailable - FMU valve network not implemented")
             self.valve_toggle.blockSignals(False)
 
     def sync_values(self, values: dict[str, float]) -> None:
@@ -1328,6 +1333,11 @@ class ComponentControls(QFrame):
 
     def _valve_changed(self, checked: bool) -> None:
         if self.component not in {"hot_gas_solenoid", "liquid_line_solenoid"}:
+            return
+        if not self.valve_toggle.isEnabled():
+            self.valve_toggle.blockSignals(True)
+            self.valve_toggle.setChecked(False)
+            self.valve_toggle.blockSignals(False)
             return
         self.defrost_active = checked
         self.valve_toggle.setText("Hot-gas path selected" if checked else "Cooling path selected")
@@ -1491,10 +1501,10 @@ class MainWindow(QMainWindow):
         self.nameplate_charge_input.setRange(0.0, 5000.0)
         self.nameplate_charge_input.setDecimals(0)
         self.nameplate_charge_input.setSingleStep(5.0)
-        self.nameplate_charge_input.setValue(100.0)
+        self.nameplate_charge_input.setValue(110.0)
         self.nameplate_charge_input.setToolTip(
-            "Charge stamped on the unit. Reference only — the model contains the two "
-            "coils and nothing else, so it is never used in the calculation."
+            "Known 110 g R290 nameplate charge. Reference only: full M3 inventory and "
+            "reinitialization physics are not implemented, so this does not alter a solve."
         )
         self.nameplate_charge_input.valueChanged.connect(self._set_nameplate_charge)
         reference_row.addWidget(reference)

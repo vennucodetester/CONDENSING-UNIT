@@ -1,1 +1,7 @@
 running stop_time_s=10000 product_start_k=255.43
+complete_cycles=6 scored=3
+last_duty_pct=96.94,97.37,96.94
+last_off_min=0.58,0.50,0.58
+stable=True off_target_5_to_6_min=False
+measured NSF: duty 74.1 pct, cycle 23.6 min, OFF 5.6 min (p10-p90 5-6)
+measured DOE: duty 84.7 pct, cycle 39.3 min, OFF 5.8 min (p10-p90 5-6)
