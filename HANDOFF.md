@@ -15,6 +15,26 @@ Nothing in the model changed. What changed is what is *known*: `docs/AS_BUILT_GE
 holds the line, drier, coil and electrical facts; §1 and §3 below carry the new measured
 results. Two of §9's four open items closed, and three new asks replaced them.
 
+**Session 6 (2026-08-07/08) changed the MODEL, not just what is known.** Everything below
+is gated 3/3 at 7/7 with provenance 7/7. `todo.md` is the live work list and is current;
+this file is the map. Read both.
+
+| what | state |
+|---|---|
+| **Dual-circuit evaporator** | `evap1`/`evap2` in parallel through distributor tubes `dist1`/`dist2`. Two halves reproduce one whole exactly: Q_evap 674.3 W vs 674.3 single-circuit. Split 50/50 by symmetry; unequal bores are the maldistribution handle |
+| **Box thermal model** | `box_thermal_model` (default off). Heat load in, box temperature out. Two nodes: `C_air_j_k` + `C_prod_j_k` coupled by `UA_prod_w_k` |
+| **Thermostat** | `box_thermostat` (default off). Cut-out 250.65 K / cut-in 253.95 K, both MEASURED at 35+ compressor transitions on two campaigns |
+| **Door openings** | `Q_door_peak_btu_hr` / `door_open_s` / `door_period_s`. Magnitude defaults to **0** — none invented, the campaigns contain no door events |
+| **Charge control** | `charge_hstart_scale` scales the condenser hstart profile. Less charge → subcooling 13.87 → 6.88 K while superheat barely moves. `scratch/solve_charge.py` root-solves for a target |
+| **Pressure drop** | Suction line and liquid line + drier now have real Darcy-Weisbach dP. Discharge line still zero |
+| **Compressor** | Closed-port off state, flooded-start branch (`rho_pump` capped at saturated vapour), `eta_is_nom` promoted from a literal. `h_valid_max` 400 K → 500 K (a sanity bound, not physics) |
+| **Coil mass** | `M_evap_wall_kg` = 4.3 kg from geometry, Evaluate=false |
+
+**The calibrated point moved four times**, all correct physics that was missing: `Unom_v`
+−0.7 %, suction dP −4.6 %, liquid dP −0.1 %, dual-circuit −0.0 %. **Q_evap is now 674 W**,
+still inside the measured 610–891 W band — but the §1 table below **predates all of it** and
+must be regenerated before anyone quotes it.
+
 ---
 
 ## 0. HOW TO WORK IN THIS PROJECT — read before doing anything
