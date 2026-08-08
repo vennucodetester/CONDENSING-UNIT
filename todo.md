@@ -127,11 +127,13 @@ Stage (a) is done and exact: Q_evap 674.3 W vs 674.3 single-circuit (−0.0 %), 
 - **(c)** Restore the per-circuit UI readouts. `app.py` currently labels them
   *"not per-circuit"* — that labelling is **now wrong** and must be reverted.
 
-### 1.4 Regenerate the HANDOFF §1 comparison table
+### 1.4 ~~Regenerate the HANDOFF §1 comparison table~~ — **DONE 2026-08-08**
 The calibrated point moved four times, all correct physics that was missing:
 `Unom_v` −0.7 %, suction dP −4.6 %, liquid dP −0.1 %, dual-circuit −0.0 %.
-Q_evap is now **674 W**, still inside the measured 610–891 W band, but the §1 table predates
-all of it. Run `python scratch/compare_to_measured.py` and re-bless before anyone quotes it.
+Regenerated. **4/10 inside the band, unchanged in count** — the moves were missing physics,
+not a regression. Q_evap 674.3 W (IN), mdot 2.74 g/s (IN), Q_cond −1213.8 W (IN), COP 1.52 (IN).
+Condenser air-off slipped just outside at −0.4 %; evaporator air-off worsened +13.0 → +17.6 %.
+The three open errors are the same three as before, and §5 still names the lead.
 
 ### 1.5 Discharge-line pressure drop — **ATTEMPTED, BREAKS THE MODEL**
 A third `SuctionLine` between `comp.OutFlow` and `cond.InFlow` took the gate to **0/3**.

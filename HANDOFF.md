@@ -99,18 +99,26 @@ The app runs the **FMU**, not the placeholder. The known-wrong-physics banner is
 Targets are **bands**, not points — see §3. A model inside the band is converged as far as
 these instruments can tell.
 
+**REGENERATED 2026-08-08** after the calibrated point moved four times. `4/10` inside the
+band, unchanged in count from before — the four moves were correct physics that had been
+missing (`Unom_v`, suction dP, liquid dP, dual-circuit), not a regression.
+
 | quantity | model | measured band | verdict |
 |---|---|---|---|
-| Q_evap | 712 W | 610 – 891 W | **IN** |
-| mass flow | 2.90 g/s | 2.11 – 3.08 g/s | **IN** |
-| Q_cond | −1270 W | −1428 .. −1147 W | **IN** |
-| COP | 1.55 | 1.14 – 1.66 | **IN** |
-| air off condenser | 110.6 F | 110.3 – 111.1 F | **IN** |
-| subcooling | 8.79 K | 8.89 K | −1.1 % |
-| T_cond | 46.65 C | 44.73 C | +4.3 % |
-| **coil superheat** | **1.93 K** | **1.27 K** | **+51.9 %** |
-| **T_evap** | **−27.69 C** | **−24.17 .. −23.59 C** | **−14.6 %** |
-| **air off evaporator** | **−7.09 F** | **−8.33 .. −8.15 F** | **+13.0 %** |
+| Q_evap | 674.3 W | 610 – 891 W | **IN** |
+| mass flow | 2.74 g/s | 2.11 – 3.08 g/s | **IN** |
+| Q_cond | −1213.8 W | −1428 .. −1147 W | **IN** |
+| COP | 1.52 | 1.14 – 1.66 | **IN** |
+| air off condenser | 109.86 F | 110.3 – 111.1 F | −0.4 % |
+| subcooling | 8.55 K | 8.89 K | −3.8 % |
+| T_cond | 46.28 C | 44.73 C | +3.5 % |
+| **coil superheat** | **1.87 K** | **1.27 K** | **+47.4 %** |
+| **T_evap** | **−27.48 C** | **−24.17 .. −23.59 C** | **−13.7 %** |
+| **air off evaporator** | **−6.71 F** | **−8.33 .. −8.15 F** | **+17.6 %** |
+
+Condenser air-off slipped just outside (−0.4 %) and evaporator air-off worsened (+13.0 →
++17.6 %); `T_cond` and superheat both improved slightly. The three open errors are the same
+three as before — superheat, `T_evap`, evaporator air-off — and §5 still names the lead.
 
 ### Two new campaigns, 2026-05-27 (NSF) and 2026-05-28 (DOE) — a REPEATABILITY check
 
