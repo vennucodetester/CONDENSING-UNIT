@@ -67,9 +67,29 @@ inside the thermostat band instead of below it fixed the confound:
 That number is trustworthy now; the two time constants are not. Period 11.1 vs 23.6/39.3
 measured, OFF 0.76 vs 5.6.
 
-**Next:** fit `C_air` to the PERIOD (it is the clean handle for that), then revisit OFF. Coil
-mass governs OFF but 16 kg fails to integrate and 40 kg balloons the period — frost *sensible*
-heat is the open candidate for mass geometry can't supply.
+**HARD TARGET, from a settled properly-initialised run (2026-08-08).** At the as-built 4.3 kg
+coil mass the settled cycle gives duty 96.9–97.4 % and **OFF 0.50–0.58 min against a measured
+5.6–5.8**. So:
+
+| | value |
+|---|---|
+| coil storage now | 2 580 J/K (4.3 kg × 600) |
+| storage the OFF period demands | **26 738 J/K — 10.4×** |
+| extra required | **24 158 J/K** |
+
+**More metal is not the route.** 16 kg of wall mass already fails to integrate (CVode −8), and
+that was only 3.7×; this asks for 10×. The storage has to arrive as a **phase-change term**:
+
+- aluminium fin → 26.8 kg extra — implausible on this coil
+- ice, *sensible* only → 11.5 kg of frost — large, and the coil stays below 0 °C so this is all
+  that's available from frost as currently understood
+- ice, *if any melts* → **0.24 kg** — two orders of magnitude less
+
+That last line is the one to chase. It says the gap closes trivially **if even a little phase
+change occurs at the coil surface** during the off cycle. The bulk coil staying below 0 °C does
+not settle what happens in the surface film, and boiling of migrated refrigerant in the coil is
+a phase-change term that is only partly represented. **This is the next real question**, and it
+is a physics question, not a fitting one.
 
 Coil-mass sweep, for the record — it does *not* reach the target either:
 

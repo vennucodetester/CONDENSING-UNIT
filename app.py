@@ -1074,14 +1074,12 @@ class ComponentControls(QFrame):
             "Evaporator",
             (
                 ("Evaporator airflow", "airflow_frac", 0, 0),
-                ("Box heat load", "q_box_load_btu_hr", 0, 0),
                 ("Return air", "t_box_k", 0, 0),
                 ("Air-side UA", "ua_evap_nom_w_k", 0, 0),
             ),
-            "Airflow, the box heat load, the return air entering the coil, and the coil's "
-            "conductance are separate physical changes. NOTE: box heat load only takes "
-            "effect with the box thermal model enabled; with it off, return air is a fixed "
-            "boundary and the load is inert.",
+            "Airflow, return air entering the coil, and coil conductance are separate "
+            "physical changes. Box heat load is hidden until the cycling box model is "
+            "validated because it is inert in the current fixed-boundary workflow.",
         ),
         "header": (
             "Suction header",
